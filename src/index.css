@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+  margin: 0;
+  background-color: #f9f6ee;
+  color: #0d2e37;
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: #cfe6ec;
+  color: #0b2931;
+}
+
+/* Custom scrollbar in warm cream and teal */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1ebd8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c9bea7;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a89a80;
+}
