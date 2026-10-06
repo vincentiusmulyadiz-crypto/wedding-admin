@@ -6,7 +6,7 @@ import {
   ChevronDown,
   LayoutDashboard,
   Users,
-  Link2,
+  MessageCircle,
   Shield,
   Settings,
   Menu,
@@ -44,8 +44,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'guests', label: 'Daftar Tamu', icon: <Users className="w-4 h-4" /> },
-    { id: 'links', label: 'Tautan Tamu', icon: <Link2 className="w-4 h-4" /> },
+    { id: 'guests', label: 'Konfirmasi RSVP', icon: <Users className="w-4 h-4" /> },
+    { id: 'links', label: 'Tamu & WhatsApp', icon: <MessageCircle className="w-4 h-4 text-emerald-600" /> },
     ...(isAdmin
       ? [
           {

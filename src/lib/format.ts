@@ -136,3 +136,41 @@ export function translateAuthError(errorMsg: string): string {
   }
   return errorMsg;
 }
+
+/**
+ * Normalizes phone numbers to international digits format (e.g. 6281234567890 for wa.me)
+ */
+export function normalizePhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return '';
+  let cleaned = phone.replace(/[^0-9]/g, '');
+  if (!cleaned) return '';
+
+  if (cleaned.startsWith('0')) {
+    cleaned = '62' + cleaned.slice(1);
+  } else if (cleaned.startsWith('8')) {
+    cleaned = '62' + cleaned;
+  }
+  return cleaned;
+}
+
+/**
+ * Pretty formats phone number for human-readable display in tables/cards
+ */
+export function formatPhoneNumber(phone: string | null | undefined): string {
+  if (!phone) return '-';
+  const raw = phone.trim();
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (digits.startsWith('62')) {
+    const rest = digits.slice(2);
+    if (rest.length > 7) {
+      return `+62 ${rest.slice(0, 3)}-${rest.slice(3, 7)}-${rest.slice(7)}`;
+    }
+    return `+62 ${rest}`;
+  }
+  if (digits.startsWith('0')) {
+    if (digits.length > 8) {
+      return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8)}`;
+    }
+  }
+  return raw;
+}
