@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const DEFAULT_URL = 'https://XXXX.supabase.co';
-const DEFAULT_KEY = 'PASTE_PUBLISHABLE_KEY';
+const DEFAULT_URL = 'https://uazfzmuvunmhnjdfxbbi.supabase.co';
+const DEFAULT_KEY = 'sb_publishable_Kbhrasv4jWCwnd52QRvprQ_1bJ-EDpe';
 
 export function cleanSupabaseUrl(raw: string): string {
   if (!raw) return '';
