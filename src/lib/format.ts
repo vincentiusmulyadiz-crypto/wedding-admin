@@ -90,9 +90,10 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
 } {
   switch (attendance) {
     case 'hadir':
+    case 'hadir_semua':
     case 'hadir_keduanya':
       return {
-        label: attendance === 'hadir_keduanya' ? 'Hadir (Keduanya)' : 'Hadir',
+        label: attendance === 'hadir_semua' ? 'Hadir (Semua Acara)' : attendance === 'hadir_keduanya' ? 'Hadir (Keduanya)' : 'Hadir',
         colorClass: 'text-emerald-800 border-emerald-300 bg-emerald-100/80',
         bgClass: 'bg-emerald-600',
       };
@@ -101,6 +102,18 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
         label: 'Hadir (Resepsi Saja)',
         colorClass: 'text-teal-800 border-teal-300 bg-teal-100/80',
         bgClass: 'bg-teal-600',
+      };
+    case 'hadir_adat':
+      return {
+        label: 'Hadir (Adat Saja)',
+        colorClass: 'text-sky-800 border-sky-300 bg-sky-100/80',
+        bgClass: 'bg-sky-600',
+      };
+    case 'hadir_pemberkatan':
+      return {
+        label: 'Hadir (Pemberkatan Saja)',
+        colorClass: 'text-indigo-800 border-indigo-300 bg-indigo-100/80',
+        bgClass: 'bg-indigo-600',
       };
     case 'tidak_hadir':
       return {

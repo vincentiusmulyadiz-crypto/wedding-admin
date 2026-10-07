@@ -60,7 +60,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .eq('customer_id', customer.id);
 
       if (filterAttendance === 'hadir') {
-        query = query.in('attendance', ['hadir', 'hadir_keduanya', 'hadir_resepsi']);
+        query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
       } else if (filterAttendance !== 'all') {
         query = query.eq('attendance', filterAttendance);
       }
@@ -140,7 +140,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .order('created_at', { ascending: false });
 
       if (filterAttendance === 'hadir') {
-        query = query.in('attendance', ['hadir', 'hadir_keduanya', 'hadir_resepsi']);
+        query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
       } else if (filterAttendance !== 'all') {
         query = query.eq('attendance', filterAttendance);
       }
@@ -153,10 +153,16 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
       const rowsData = ((data as Rsvp[]) || []).map((item) => {
         const attendanceLabel =
-          item.attendance === 'hadir_keduanya'
+          item.attendance === 'hadir_semua'
+            ? 'Hadir (Semua Acara)'
+            : item.attendance === 'hadir_keduanya'
             ? 'Hadir (Keduanya)'
             : item.attendance === 'hadir_resepsi'
             ? 'Hadir (Resepsi Saja)'
+            : item.attendance === 'hadir_adat'
+            ? 'Hadir (Adat Saja)'
+            : item.attendance === 'hadir_pemberkatan'
+            ? 'Hadir (Pemberkatan Saja)'
             : item.attendance === 'hadir'
             ? 'Hadir'
             : item.attendance === 'tidak_hadir'
@@ -273,9 +279,12 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               className="w-full py-2 px-3 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             >
               <option value="all">Semua Kehadiran</option>
-              <option value="hadir">Hadir (Semua)</option>
-              <option value="hadir_keduanya">Hadir (Keduanya)</option>
+              <option value="hadir">Semua yang Hadir</option>
+              <option value="hadir_semua">Hadir (Semua Acara)</option>
               <option value="hadir_resepsi">Hadir (Resepsi Saja)</option>
+              <option value="hadir_adat">Hadir (Adat Saja)</option>
+              <option value="hadir_pemberkatan">Hadir (Pemberkatan Saja)</option>
+              <option value="hadir_keduanya">Hadir (Keduanya)</option>
               <option value="tidak_hadir">Tidak Hadir Saja</option>
               <option value="belum_pasti">Belum Pasti Saja</option>
             </select>

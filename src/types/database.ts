@@ -1,4 +1,12 @@
-export type AttendanceType = 'hadir' | 'hadir_keduanya' | 'hadir_resepsi' | 'tidak_hadir' | 'belum_pasti';
+export type AttendanceType =
+  | 'hadir'
+  | 'hadir_semua'
+  | 'hadir_keduanya'
+  | 'hadir_resepsi'
+  | 'hadir_adat'
+  | 'hadir_pemberkatan'
+  | 'tidak_hadir'
+  | 'belum_pasti';
 
 export interface Customer {
   id: string;

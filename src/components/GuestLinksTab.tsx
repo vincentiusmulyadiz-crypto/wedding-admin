@@ -48,9 +48,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   const templateStorageKey = `wa_template_${customer.id}`;
   const linkFormatStorageKey = `link_format_${customer.id}`;
 
-  const defaultBaseUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/${customer.slug}`
-    : `https://undangan.com/${customer.slug}`;
+  const defaultBaseUrl = customer.slug === 'alfredo-yana'
+    ? 'https://alfredo-yana.vercel.app'
+    : (typeof window !== 'undefined'
+      ? `${window.location.origin}/${customer.slug}`
+      : `https://undangan.com/${customer.slug}`);
 
   // Initial guest list loader with backward compatibility
   const [guests, setGuests] = useState<InvitedGuest[]>(() => {

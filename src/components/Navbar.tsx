@@ -166,16 +166,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* User Controls */}
           <div className="hidden sm:flex items-center gap-3">
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={onOpenConfig}
-                title="Pengaturan Supabase"
-                className="p-2 rounded-xl text-[#5d7c86] hover:text-[#0f3b47] hover:bg-[#eee6d5] border border-transparent hover:border-[#ded3bd] transition"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onOpenConfig}
+              title="Pengaturan Supabase"
+              className="p-2 rounded-xl text-[#5d7c86] hover:text-[#0f3b47] hover:bg-[#eee6d5] border border-transparent hover:border-[#ded3bd] transition"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
 
             {userEmail && (
               <span className="text-xs text-[#52717b] font-mono max-w-[150px] truncate" title={userEmail}>
@@ -238,19 +236,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               {userEmail}
             </div>
             <div className="flex items-center gap-2">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenConfig();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="p-2 rounded-lg text-[#5d7c86] hover:bg-[#e7decb]"
-                  title="Pengaturan Supabase"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenConfig();
+                  setMobileMenuOpen(false);
+                }}
+                className="p-2 rounded-lg text-[#5d7c86] hover:bg-[#e7decb]"
+                title="Pengaturan Supabase"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
               <button
                 type="button"
                 onClick={onLogout}
