@@ -90,10 +90,17 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
 } {
   switch (attendance) {
     case 'hadir':
+    case 'hadir_keduanya':
       return {
-        label: 'Hadir',
+        label: attendance === 'hadir_keduanya' ? 'Hadir (Keduanya)' : 'Hadir',
         colorClass: 'text-emerald-800 border-emerald-300 bg-emerald-100/80',
         bgClass: 'bg-emerald-600',
+      };
+    case 'hadir_resepsi':
+      return {
+        label: 'Hadir (Resepsi Saja)',
+        colorClass: 'text-teal-800 border-teal-300 bg-teal-100/80',
+        bgClass: 'bg-teal-600',
       };
     case 'tidak_hadir':
       return {

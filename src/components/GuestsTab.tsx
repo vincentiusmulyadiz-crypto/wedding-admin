@@ -59,7 +59,9 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .select('*', { count: 'exact' })
         .eq('customer_id', customer.id);
 
-      if (filterAttendance !== 'all') {
+      if (filterAttendance === 'hadir') {
+        query = query.in('attendance', ['hadir', 'hadir_keduanya', 'hadir_resepsi']);
+      } else if (filterAttendance !== 'all') {
         query = query.eq('attendance', filterAttendance);
       }
 
@@ -137,7 +139,9 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .eq('customer_id', customer.id)
         .order('created_at', { ascending: false });
 
-      if (filterAttendance !== 'all') {
+      if (filterAttendance === 'hadir') {
+        query = query.in('attendance', ['hadir', 'hadir_keduanya', 'hadir_resepsi']);
+      } else if (filterAttendance !== 'all') {
         query = query.eq('attendance', filterAttendance);
       }
 
@@ -149,7 +153,11 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
       const rowsData = ((data as Rsvp[]) || []).map((item) => {
         const attendanceLabel =
-          item.attendance === 'hadir'
+          item.attendance === 'hadir_keduanya'
+            ? 'Hadir (Keduanya)'
+            : item.attendance === 'hadir_resepsi'
+            ? 'Hadir (Resepsi Saja)'
+            : item.attendance === 'hadir'
             ? 'Hadir'
             : item.attendance === 'tidak_hadir'
             ? 'Tidak Hadir'
@@ -265,7 +273,9 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               className="w-full py-2 px-3 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             >
               <option value="all">Semua Kehadiran</option>
-              <option value="hadir">Hadir Saja</option>
+              <option value="hadir">Hadir (Semua)</option>
+              <option value="hadir_keduanya">Hadir (Keduanya)</option>
+              <option value="hadir_resepsi">Hadir (Resepsi Saja)</option>
               <option value="tidak_hadir">Tidak Hadir Saja</option>
               <option value="belum_pasti">Belum Pasti Saja</option>
             </select>

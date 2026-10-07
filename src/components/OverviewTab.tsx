@@ -72,7 +72,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
         const att = (r.attendance || '').toLowerCase() as AttendanceType;
         const guestCount = typeof r.guests === 'number' ? r.guests : parseInt(String(r.guests || 1), 10) || 1;
 
-        if (att === 'hadir') {
+        if (att === 'hadir' || att === 'hadir_keduanya' || att === 'hadir_resepsi') {
           hadir++;
           totalPaxHadir += guestCount;
         } else if (att === 'tidak_hadir') {

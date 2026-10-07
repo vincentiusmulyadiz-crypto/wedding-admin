@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.rsvps (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    attendance TEXT NOT NULL CHECK (attendance IN ('hadir', 'tidak_hadir', 'belum_pasti')),
+    attendance TEXT NOT NULL CHECK (attendance IN ('hadir', 'hadir_keduanya', 'hadir_resepsi', 'tidak_hadir', 'belum_pasti')),
     guests INTEGER NOT NULL DEFAULT 1 CHECK (guests >= 1),
     message TEXT,
     guest_param TEXT,
