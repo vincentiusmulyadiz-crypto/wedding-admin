@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
-import { formatDateTimeIndonesian, getAttendanceBadge } from '../lib/format';
+import { formatDateTimeIndonesian, getDetailedAttendanceInfo } from '../lib/format';
+import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
 import { exportToCsv } from '../lib/csv';
 import { TableSkeleton } from './Skeleton';
 import {
@@ -74,6 +75,23 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       query = query.range(from, to);
 
       const { data, count, error } = await query;
+
+      if ((error || !data || data.length === 0) && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
+        let list = [...DEMO_ROMEO_JULIET_RSVPS];
+        if (filterAttendance === 'hadir') {
+          list = list.filter((r) => r.attendance.startsWith('hadir'));
+        } else if (filterAttendance !== 'all') {
+          list = list.filter((r) => r.attendance === filterAttendance);
+        }
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          list = list.filter((r) => r.name.toLowerCase().includes(q) || (r.message && r.message.toLowerCase().includes(q)));
+        }
+        setRsvps(list);
+        setTotalCount(list.length);
+        setFetchError(null);
+        return;
+      }
 
       if (error) {
         console.error('Error fetching guests:', error.message);
@@ -360,7 +378,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               </thead>
               <tbody className="divide-y divide-[#eee5d4]">
                 {rsvps.map((item) => {
-                  const badge = getAttendanceBadge(item.attendance);
+                  const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
                   return (
                     <tr key={item.id} className="hover:bg-[#f8f3e9] transition">
                       <td className="py-3.5 px-4 text-[#597983] whitespace-nowrap font-mono text-[11px]">
@@ -372,12 +390,19 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                       </td>
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.colorClass}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${badge.bgClass}`} />
-                          {badge.label}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.colorClass}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${badge.bgClass}`} />
+                            {badge.label}
+                          </span>
+                          {eventDetail && (
+                            <span className="text-[10px] font-semibold text-[#0f3b47] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#d8cdb8]">
+                              Acara: {eventDetail}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4 text-center font-bold font-mono text-[#0f3b47]">
@@ -423,7 +448,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           {/* Mobile Stacked Cards View */}
           <div className="md:hidden space-y-3">
             {rsvps.map((item) => {
-              const badge = getAttendanceBadge(item.attendance);
+              const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
               return (
                 <div
                   key={item.id}
@@ -431,7 +456,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-[#0f3b47] text-sm">
                           {item.name}
                         </span>
@@ -440,6 +465,11 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                         >
                           {badge.label}
                         </span>
+                        {eventDetail && (
+                          <span className="text-[9px] font-semibold text-[#0f3b47] bg-[#f0ebd9] px-1.5 py-0.5 rounded border border-[#d8cdb8]">
+                            Acara: {eventDetail}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-[#698892] font-mono">
                         <Clock className="w-3 h-3" />

@@ -187,19 +187,17 @@ BEGIN
     -- 3. Bersihkan RSVP lama jika ada untuk customer ini
     DELETE FROM public.rsvps WHERE customer_id = cust_id;
 
-    -- 4. Masukkan data sampel RSVP beragam
+    -- 4. Masukkan data sampel RSVP beragam dengan opsi kehadiran terbaru
     INSERT INTO public.rsvps (customer_id, name, attendance, guests, message, guest_param, created_at)
     VALUES
-    (cust_id, 'Budi Santoso', 'hadir', 2, 'Selamat menempuh hidup baru Romeo & Juliet! Semoga menjadi keluarga yang sakinah, mawaddah, warahmah.', 'Budi Santoso', NOW() - INTERVAL '1 hour'),
-    (cust_id, 'Siti Aminah & Keluarga', 'hadir', 3, 'Barakallahu lakuma wa baraka alaikuma! InsyaAllah kami sekeluarga akan hadir.', 'Siti Aminah & Keluarga', NOW() - INTERVAL '3 hours'),
-    (cust_id, 'Dr. Hendra Wijaya', 'tidak_hadir', 1, 'Mohon maaf belum bisa hadir secara langsung karena ada jadwal operasi di luar kota. Doa terbaik untuk kedua mempelai.', 'Dr. Hendra Wijaya', NOW() - INTERVAL '5 hours'),
-    (cust_id, 'Reza Fahlevi', 'belum_pasti', 1, 'InsyaAllah diusahakan hadir jika jadwal cuti disetujui kantor ya!', 'Reza Fahlevi', NOW() - INTERVAL '8 hours'),
-    (cust_id, 'Dian Sastro & Suami', 'hadir', 2, 'Happy wedding sahabatku tercinta! Can''t wait to see you both on the big day!', 'Dian Sastro', NOW() - INTERVAL '12 hours'),
-    (cust_id, 'Ahmad Fauzi', 'hadir', 1, 'Selamat bro! Lancar sampai hari H.', 'Ahmad Fauzi', NOW() - INTERVAL '1 day'),
-    (cust_id, 'Nurul Hidayah', 'tidak_hadir', 1, 'Selamat atas pernikahannya. Maaf belum bisa hadir, titip salam buat keluarga besar.', 'Nurul Hidayah', NOW() - INTERVAL '1 day 4 hours'),
-    (cust_id, 'Dimas Anggara', 'hadir', 4, 'Kami sekeluarga hadir meramaikan hari bahagia kalian!', 'Dimas Anggara', NOW() - INTERVAL '2 days'),
-    (cust_id, 'Maya Indriani', 'belum_pasti', 2, 'Selamat ya! Nanti kami kabari lagi H-7 untuk kepastiannya.', 'Maya Indriani', NOW() - INTERVAL '2 days 6 hours'),
-    (cust_id, 'Rian Pratama', 'hadir', 2, 'Congratsss bro! Semoga langgeng sampai kakek nenek!', 'Rian Pratama', NOW() - INTERVAL '3 days');
+    (cust_id, 'Budi Santoso & Istri', 'hadir_semua', 2, '[Hadir: Attend All] Selamat menempuh hidup baru Romeo & Juliet! Kiranya cinta kasih senantiasa mengiringi setiap langkah kalian.', 'Budi Santoso', NOW() - INTERVAL '1 hour'),
+    (cust_id, 'Samuel Hutabarat & Maria', 'hadir_pemberkatan', 2, '[Hadir: Pemberkatan] Puji Tuhan, selamat atas ikrar suci pernikahan kalian. Kami hadir dalam ibadah pemberkatan.', 'Samuel & Maria', NOW() - INTERVAL '2 hours'),
+    (cust_id, 'Siti Aminah & Keluarga', 'hadir_resepsi', 3, '[Hadir: Reservation] Barakallah Romeo & Juliet! InsyaAllah kami sekeluarga hadir di resepsi pernikahan.', 'Siti Aminah', NOW() - INTERVAL '4 hours'),
+    (cust_id, 'Batara Siregar & Dame', 'hadir_adat', 4, '[Hadir: Adat] Selamat atas pesta adatnya! Horas dan bahagia selalu untuk kedua mempelai.', 'Batara Siregar', NOW() - INTERVAL '8 hours'),
+    (cust_id, 'Dian Sastro & Suami', 'hadir_keduanya', 2, '[Hadir: Keduanya] Happy wedding sahabat tercinta! Can''t wait to celebrate both ceremonies with you guys!', 'Dian Sastro', NOW() - INTERVAL '12 hours'),
+    (cust_id, 'Dr. Hendra Wijaya', 'tidak_hadir', 1, 'Mohon maaf belum bisa hadir secara langsung karena tugas operasi di luar kota. Doa terbaik untuk Romeo & Juliet!', 'Dr. Hendra Wijaya', NOW() - INTERVAL '1 day'),
+    (cust_id, 'Reza Fahlevi', 'belum_pasti', 1, 'InsyaAllah diusahakan hadir jika jadwal kantor memungkinkan. Selamat ya!', 'Reza Fahlevi', NOW() - INTERVAL '1 day 4 hours'),
+    (cust_id, 'Dimas Anggara & Partner', 'hadir_semua', 2, '[Hadir: Attend All] Hadir untuk semua rangkaian acara! Selamat berbahagia kawan!', 'Dimas Anggara', NOW() - INTERVAL '2 days');
 
     RAISE NOTICE 'Sukses! Tabel dan data dummy berhasil dipersiapkan.';
 END $$;

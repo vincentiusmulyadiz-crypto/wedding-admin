@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import type { Customer, Rsvp, AttendanceType } from '../types/database';
+import type { Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
 import {
   formatDateIndonesian,
@@ -23,6 +23,8 @@ import {
   Radio,
 } from 'lucide-react';
 
+import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
+
 interface OverviewTabProps {
   customer: Customer;
 }
@@ -36,6 +38,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
     tidakHadirCount: 0,
     belumPastiCount: 0,
     totalGuestsAttending: 0,
+  });
+  const [eventStats, setEventStats] = useState({
+    countAttendAll: 0,
+    countResepsi: 0,
+    countAdat: 0,
+    countPemberkatan: 0,
+    countKeduanya: 0,
+    countHadirUmum: 0,
   });
   const [latestWishes, setLatestWishes] = useState<Rsvp[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -61,20 +71,47 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
         return;
       }
 
-      const rows: Rsvp[] = (rsvps as Rsvp[]) || [];
+      let rows: Rsvp[] = (rsvps as Rsvp[]) || [];
+
+      // Fallback for Romeo & Juliet demo customer if DB returns no rows
+      if (rows.length === 0 && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
+        rows = DEMO_ROMEO_JULIET_RSVPS;
+      }
 
       let hadir = 0;
       let tidakHadir = 0;
       let belumPasti = 0;
       let totalPaxHadir = 0;
 
+      let countAttendAll = 0;
+      let countResepsi = 0;
+      let countAdat = 0;
+      let countPemberkatan = 0;
+      let countKeduanya = 0;
+      let countHadirUmum = 0;
+
       rows.forEach((r) => {
-        const att = (r.attendance || '').toLowerCase() as AttendanceType;
+        const att = (r.attendance || '').toLowerCase();
+        const msg = (r.message || '').toLowerCase();
         const guestCount = typeof r.guests === 'number' ? r.guests : parseInt(String(r.guests || 1), 10) || 1;
 
         if (att.startsWith('hadir')) {
           hadir++;
           totalPaxHadir += guestCount;
+
+          if (att === 'hadir_semua' || msg.includes('attend all') || msg.includes('semua acara')) {
+            countAttendAll++;
+          } else if (att === 'hadir_resepsi' || msg.includes('reservation') || msg.includes('resepsi saja')) {
+            countResepsi++;
+          } else if (att === 'hadir_adat' || msg.includes('adat saja')) {
+            countAdat++;
+          } else if (att === 'hadir_pemberkatan' || msg.includes('pemberkatan saja')) {
+            countPemberkatan++;
+          } else if (att === 'hadir_keduanya' || msg.includes('keduanya')) {
+            countKeduanya++;
+          } else {
+            countHadirUmum++;
+          }
         } else if (att === 'tidak_hadir') {
           tidakHadir++;
         } else {
@@ -88,6 +125,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
         tidakHadirCount: tidakHadir,
         belumPastiCount: belumPasti,
         totalGuestsAttending: totalPaxHadir,
+      });
+
+      setEventStats({
+        countAttendAll,
+        countResepsi,
+        countAdat,
+        countPemberkatan,
+        countKeduanya,
+        countHadirUmum,
       });
 
       const wishes = rows.filter((r) => r.message && r.message.trim().length > 0).slice(0, 5);
@@ -300,6 +346,76 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
           </div>
         </div>
       )}
+
+      {/* Rincian Jenis Kehadiran per Acara */}
+      <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[#eee5d4] pb-2.5">
+          <div>
+            <h2 className="text-sm font-bold text-[#0f3b47] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>Rincian Jenis Kehadiran per Acara</span>
+            </h2>
+            <p className="text-[11px] text-[#5e7d87]">
+              Distribusi kehadiran tamu pada setiap rangkaian acara pernikahan
+            </p>
+          </div>
+          <span className="text-xs font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-full border border-emerald-300 w-fit">
+            Total {stats.hadirCount} tamu hadir ({stats.totalGuestsAttending} pax)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+          {/* Attend All */}
+          <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
+              Semua Acara (Attend All)
+            </span>
+            <p className="text-xl font-extrabold text-emerald-900">
+              {eventStats.countAttendAll} <span className="text-xs font-medium text-emerald-700">respons</span>
+            </p>
+          </div>
+
+          {/* Reservation / Resepsi */}
+          <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-teal-800 tracking-wider block">
+              Reservation (Resepsi)
+            </span>
+            <p className="text-xl font-extrabold text-teal-900">
+              {eventStats.countResepsi} <span className="text-xs font-medium text-teal-700">respons</span>
+            </p>
+          </div>
+
+          {/* Adat / Culture */}
+          <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-sky-800 tracking-wider block">
+              Adat / Culture
+            </span>
+            <p className="text-xl font-extrabold text-sky-900">
+              {eventStats.countAdat} <span className="text-xs font-medium text-sky-700">respons</span>
+            </p>
+          </div>
+
+          {/* Pemberkatan */}
+          <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-indigo-800 tracking-wider block">
+              Pemberkatan (Holy Matrimony)
+            </span>
+            <p className="text-xl font-extrabold text-indigo-900">
+              {eventStats.countPemberkatan} <span className="text-xs font-medium text-indigo-700">respons</span>
+            </p>
+          </div>
+
+          {/* Keduanya / Kombinasi */}
+          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
+              Keduanya / Kombinasi
+            </span>
+            <p className="text-xl font-extrabold text-amber-900">
+              {eventStats.countKeduanya + eventStats.countHadirUmum} <span className="text-xs font-medium text-amber-700">respons</span>
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Middle row: Donut Chart & 5 Latest Wishes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

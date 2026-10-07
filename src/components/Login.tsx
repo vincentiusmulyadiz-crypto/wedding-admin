@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { translateAuthError } from '../lib/format';
 import logo from '../assets/logo.png';
-import { Lock, Mail, Loader2 } from 'lucide-react';
+import { Lock, Mail, Loader2, Sparkles } from 'lucide-react';
 
 interface LoginProps {
   onSuccess: () => void;
+  onDemoLogin: () => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
+export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -124,7 +125,22 @@ export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-[#ede5d4] text-center">
+          {/* Demo Account Button */}
+          <div className="mt-5 pt-4 border-t border-[#ede5d4]">
+            <button
+              type="button"
+              onClick={onDemoLogin}
+              className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7dec8] border border-[#d8cdb8] active:scale-[0.99] transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>Masuk sebagai Akun Demo (Romeo & Juliet)</span>
+            </button>
+            <p className="text-[10.5px] text-[#6e8a93] text-center mt-1.5">
+              Coba fitur dashboard langsung tanpa akun Supabase
+            </p>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-[#ede5d4] text-center">
             <p className="text-xs text-[#6e8a93]">
               Akses khusus pengantin dan administrator. Pendaftaran akun baru tidak disediakan di aplikasi ini.
             </p>

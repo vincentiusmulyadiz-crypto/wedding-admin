@@ -115,14 +115,43 @@ export function App() {
     }
   }, [session?.user]);
 
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+
   useEffect(() => {
-    if (session?.user) {
+    if (session?.user && !isDemoMode) {
       checkAdminStatus(session.user.id);
       fetchCustomers();
     }
-  }, [session, checkAdminStatus, fetchCustomers]);
+  }, [session, isDemoMode, checkAdminStatus, fetchCustomers]);
+
+  const handleDemoLogin = () => {
+    import('./data/demoData').then(({ DEMO_CUSTOMER }) => {
+      setIsDemoMode(true);
+      setSession({
+        user: {
+          id: DEMO_CUSTOMER.owner_id || 'demo-user-romeo-juliet',
+          email: 'demo@joyever.id',
+          app_metadata: {},
+          user_metadata: {},
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+        },
+      } as unknown as Session);
+      setIsAdmin(true);
+      setCustomers([DEMO_CUSTOMER]);
+      setSelectedCustomer(DEMO_CUSTOMER);
+    });
+  };
 
   const handleLogout = async () => {
+    if (isDemoMode) {
+      setIsDemoMode(false);
+      setSession(null);
+      setCustomers([]);
+      setSelectedCustomer(null);
+      setIsAdmin(false);
+      return;
+    }
     try {
       const supabase = getSupabase();
       await supabase.auth.signOut();
@@ -147,7 +176,7 @@ export function App() {
 
   // 2. Unauthenticated: Login screen
   if (!session) {
-    return <Login onSuccess={checkSession} />;
+    return <Login onSuccess={checkSession} onDemoLogin={handleDemoLogin} />;
   }
 
   return (

@@ -131,6 +131,40 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
   }
 }
 
+export function getDetailedAttendanceInfo(
+  attendance: AttendanceType | string,
+  message?: string | null
+): {
+  badge: { label: string; colorClass: string; bgClass: string };
+  eventDetail: string;
+} {
+  const badge = getAttendanceBadge(attendance);
+  let eventDetail = '';
+
+  const att = (attendance || '').toLowerCase();
+  if (att === 'hadir_semua') {
+    eventDetail = 'Attend All (Semua Acara)';
+  } else if (att === 'hadir_resepsi') {
+    eventDetail = 'Reservation / Resepsi';
+  } else if (att === 'hadir_adat') {
+    eventDetail = 'Adat / Culture';
+  } else if (att === 'hadir_pemberkatan') {
+    eventDetail = 'Pemberkatan / Holy Matrimony';
+  } else if (att === 'hadir_keduanya') {
+    eventDetail = 'Pemberkatan & Resepsi';
+  }
+
+  // If eventDetail is still empty, extract from message tag e.g. [Hadir: ...]
+  if (!eventDetail && message) {
+    const match = message.match(/^\[Hadir:\s*([^\]]+)\]/i);
+    if (match) {
+      eventDetail = match[1].trim();
+    }
+  }
+
+  return { badge, eventDetail };
+}
+
 export function translateAuthError(errorMsg: string): string {
   const lower = errorMsg.toLowerCase();
   if (lower.includes('invalid login credentials')) {
