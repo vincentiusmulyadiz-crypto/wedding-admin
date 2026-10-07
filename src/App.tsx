@@ -147,21 +147,7 @@ export function App() {
 
   // 2. Unauthenticated: Login screen
   if (!session) {
-    return (
-      <>
-        <Login
-          onSuccess={checkSession}
-          onOpenConfig={() => setConfigOpen(true)}
-        />
-        <ConfigModal
-          isOpen={configOpen}
-          onClose={() => setConfigOpen(false)}
-          onSaved={() => {
-            checkSession();
-          }}
-        />
-      </>
-    );
+    return <Login onSuccess={checkSession} />;
   }
 
   return (
@@ -336,17 +322,15 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
         </div>
       </footer>
 
-      {/* Supabase Configuration Modal (Only for Admin) */}
-      {isAdmin && (
-        <ConfigModal
-          isOpen={configOpen}
-          onClose={() => setConfigOpen(false)}
-          onSaved={() => {
-            checkSession();
-            fetchCustomers();
-          }}
-        />
-      )}
+      {/* Supabase Configuration Modal (Accessible after login) */}
+      <ConfigModal
+        isOpen={configOpen}
+        onClose={() => setConfigOpen(false)}
+        onSaved={() => {
+          checkSession();
+          fetchCustomers();
+        }}
+      />
     </div>
   );
 }

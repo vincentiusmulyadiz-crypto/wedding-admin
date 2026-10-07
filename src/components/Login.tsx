@@ -1,30 +1,22 @@
 import React, { useState } from 'react';
-import { getSupabase, getStoredConfig } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 import { translateAuthError } from '../lib/format';
 import logo from '../assets/logo.png';
-import { Lock, Mail, Loader2, Settings, ShieldAlert } from 'lucide-react';
+import { Lock, Mail, Loader2 } from 'lucide-react';
 
 interface LoginProps {
   onSuccess: () => void;
-  onOpenConfig: () => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onSuccess, onOpenConfig }) => {
+export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const { isPlaceholder } = getStoredConfig();
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-
-    if (isPlaceholder) {
-      setErrorMessage('Koneksi Supabase belum dikonfigurasi. Klik tombol Konfigurasi Supabase di bawah.');
-      return;
-    }
 
     setLoading(true);
     try {
@@ -70,25 +62,6 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onOpenConfig }) => {
             </p>
           </div>
         </div>
-
-        {isPlaceholder && (
-          <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl space-y-2 text-xs text-amber-900 shadow-xs">
-            <div className="flex items-center gap-2 text-amber-800 font-semibold">
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>Supabase Belum Dikonfigurasi</span>
-            </div>
-            <p className="text-amber-800/90 leading-relaxed">
-              Kunci URL atau Publishable Key masih berisi placeholder. Anda dapat memasukkannya langsung sekarang.
-            </p>
-            <button
-              type="button"
-              onClick={onOpenConfig}
-              className="font-medium text-amber-900 underline inline-flex items-center gap-1 pt-1 hover:text-amber-700"
-            >
-              <Settings className="w-3.5 h-3.5" /> Atur Supabase Sekarang
-            </button>
-          </div>
-        )}
 
         <div className="bg-[#fffdf8] border border-[#e3dac8] rounded-3xl p-6 md:p-8 shadow-md">
           {errorMessage && (
@@ -156,16 +129,6 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onOpenConfig }) => {
               Akses khusus pengantin dan administrator. Pendaftaran akun baru tidak disediakan di aplikasi ini.
             </p>
           </div>
-        </div>
-
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={onOpenConfig}
-            className="text-xs text-[#5d7c86] hover:text-[#0f3b47] inline-flex items-center gap-1.5 py-1 px-3 rounded-xl hover:bg-[#f0ebd9] border border-transparent hover:border-[#d8cdb8] transition font-medium"
-          >
-            <Settings className="w-3.5 h-3.5" /> Konfigurasi Supabase
-          </button>
         </div>
       </div>
     </div>
