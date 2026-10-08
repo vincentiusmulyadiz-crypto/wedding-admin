@@ -40,38 +40,77 @@ Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Anda berkenan hadir
 
 Terima kasih.`;
 
-export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
-  const guestsStorageKey = `guest_records_v2_${customer.id}`;
-  const namesOldStorageKey = `guest_names_${customer.id}`;
-  const codesStorageKey = `guest_codes_${customer.id}`;
-  const baseUrlStorageKey = `base_url_${customer.id}`;
-  const templateStorageKey = `wa_template_${customer.id}`;
-  const linkFormatStorageKey = `link_format_${customer.id}`;
+// Helper: Cek apakah daftar saat ini hanya berisi 4 data dummy bawaan
+export const isSampleGuestList = (list: InvitedGuest[]): boolean => {
+  if (!list || list.length !== 4) return false;
+  return list[0]?.name === 'Budi Santoso' && list[1]?.name === 'Siti Aminah & Keluarga';
+};
 
-  const defaultBaseUrl = customer.slug === 'alfredo-yana'
-    ? 'https://alfredo-yana.vercel.app'
-    : (typeof window !== 'undefined'
-      ? `${window.location.origin}/${customer.slug}`
-      : `https://undangan.com/${customer.slug}`);
+// Format arahan preview URL untuk masing-masing customer (hanya placeholder)
+export const getBaseUrlPreviewFormat = (cust: Customer): string => {
+  if (cust.slug === 'alfredo-yana') {
+    return 'https://alfredo-yana.vercel.app';
+  }
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return `${window.location.origin}/${cust.slug || 'nama-pasangan'}`;
+  }
+  return `https://undangan.com/${cust.slug || 'nama-pasangan'}`;
+};
 
-  // Initial guest list loader with backward compatibility
-  const [guests, setGuests] = useState<InvitedGuest[]>(() => {
-    try {
-      const savedV2 = localStorage.getItem(guestsStorageKey);
-      if (savedV2) {
-        return JSON.parse(savedV2);
+// Muat Base URL yang tersimpan khusus untuk akun ini. Jika baru buka, KOSONG ('')
+export const loadStoredBaseUrl = (cust: Customer): string => {
+  try {
+    const fromId = localStorage.getItem(`base_url_${cust.id}`);
+    if (fromId !== null && fromId !== undefined) {
+      return fromId;
+    }
+    if (cust.slug) {
+      const fromSlug = localStorage.getItem(`base_url_${cust.slug}`);
+      if (fromSlug !== null && fromSlug !== undefined) {
+        return fromSlug;
       }
+    }
+  } catch (e) {
+    console.error('Error loading base url:', e);
+  }
+  // Saat baru buka: kotak teks kosong (hanya preview teks format untuk arahan)
+  return '';
+};
 
-      // Check legacy names string
-      const legacyNames = localStorage.getItem(namesOldStorageKey);
-      if (legacyNames) {
-        const lines = legacyNames
-          .split('\n')
-          .map((l) => l.trim())
-          .filter(Boolean);
+// Simpan Base URL khusus untuk akun ini
+export const saveBaseUrlForCustomer = (cust: Customer, url: string) => {
+  try {
+    localStorage.setItem(`base_url_${cust.id}`, url);
+    if (cust.slug) {
+      localStorage.setItem(`base_url_${cust.slug}`, url);
+    }
+  } catch (e) {
+    console.error('Error saving base url:', e);
+  }
+};
 
+// Muat daftar tamu yang tersimpan khusus untuk akun ini
+export const loadStoredGuests = (cust: Customer): InvitedGuest[] => {
+  try {
+    const idKey = `guest_records_v2_${cust.id}`;
+    const slugKey = cust.slug ? `guest_records_v2_${cust.slug}` : null;
+    const legacyKey = `guest_names_${cust.id}`;
+    const legacySlugKey = cust.slug ? `guest_names_${cust.slug}` : null;
+
+    const saved = localStorage.getItem(idKey) || (slugKey ? localStorage.getItem(slugKey) : null);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+
+    // Cek format nama legasi jika ada
+    const legacy = localStorage.getItem(legacyKey) || (legacySlugKey ? localStorage.getItem(legacySlugKey) : null);
+    if (legacy) {
+      const lines = legacy.split('\n').map((l) => l.trim()).filter(Boolean);
+      if (lines.length > 0) {
         return lines.map((line, idx) => {
-          // Check if formatted like "Nama, 0812345678" or "Nama - 0812345678"
           let name = line;
           let phone = '';
           if (line.includes(',')) {
@@ -90,22 +129,55 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
           };
         });
       }
-    } catch (e) {
-      console.error('Error loading guests:', e);
     }
+  } catch (e) {
+    console.error('Error loading guests:', e);
+  }
 
-    // Default sample list if nothing exists
+  // Khusus akun demo romeo-juliet sediakan data contoh awal
+  if (cust.slug === 'romeo-juliet' || cust.id.includes('demo')) {
     return [
-      { id: '1', name: 'Budi Santoso', phone: '081234567890' },
-      { id: '2', name: 'Siti Aminah & Keluarga', phone: '085712345678' },
-      { id: '3', name: 'Dr. Hendra Wijaya', phone: '081987654321' },
-      { id: '4', name: 'Reza Fahlevi', phone: '' },
+      { id: 'demo-1', name: 'Budi Santoso', phone: '081234567890' },
+      { id: 'demo-2', name: 'Siti Aminah & Keluarga', phone: '085712345678' },
+      { id: 'demo-3', name: 'Dr. Hendra Wijaya', phone: '081987654321' },
+      { id: 'demo-4', name: 'Reza Fahlevi', phone: '' },
     ];
-  });
+  }
 
-  const [baseUrl, setBaseUrl] = useState<string>(() => {
-    return localStorage.getItem(baseUrlStorageKey) || defaultBaseUrl;
-  });
+  // Akun nyata (seperti alfredo-yana / akun klien) default kosong agar data impor tersimpan bersih
+  return [];
+};
+
+// Simpan daftar tamu khusus untuk akun ini
+export const saveGuestsForCustomer = (cust: Customer, guestList: InvitedGuest[]) => {
+  try {
+    const idKey = `guest_records_v2_${cust.id}`;
+    const legacyIdKey = `guest_names_${cust.id}`;
+    localStorage.setItem(idKey, JSON.stringify(guestList));
+    const namesOnly = guestList.map((g) => (g.phone ? `${g.name}, ${g.phone}` : g.name)).join('\n');
+    localStorage.setItem(legacyIdKey, namesOnly);
+
+    if (cust.slug) {
+      localStorage.setItem(`guest_records_v2_${cust.slug}`, JSON.stringify(guestList));
+      localStorage.setItem(`guest_names_${cust.slug}`, namesOnly);
+    }
+  } catch (e) {
+    console.error('Error saving guests:', e);
+  }
+};
+
+export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
+  const codesStorageKey = `guest_codes_${customer.id}`;
+  const templateStorageKey = `wa_template_${customer.id}`;
+  const linkFormatStorageKey = `link_format_${customer.id}`;
+
+  const previewBaseUrl = getBaseUrlPreviewFormat(customer);
+
+  // Initial guest list loader tersimpan per akun
+  const [guests, setGuests] = useState<InvitedGuest[]>(() => loadStoredGuests(customer));
+
+  // Base URL text box: kosong saat baru buka, menyimpan teks jika diketik
+  const [baseUrl, setBaseUrl] = useState<string>(() => loadStoredBaseUrl(customer));
 
   const [linkFormat, setLinkFormat] = useState<'random' | 'named'>(() => {
     return (localStorage.getItem(linkFormatStorageKey) as 'random' | 'named') || 'random';
@@ -126,8 +198,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   const [inputPhone, setInputPhone] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Batch Import Text
+  // Batch Import Text & Options
   const [batchText, setBatchText] = useState<string>('');
+  const [replaceExisting, setReplaceExisting] = useState<boolean>(false);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -140,17 +213,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState<boolean>(false);
 
-  // Sync Guests to LocalStorage
+  // Sinkronisasi ulang data saat customer berubah
   useEffect(() => {
-    localStorage.setItem(guestsStorageKey, JSON.stringify(guests));
-    // Also save plain names string for legacy compatibility
-    const namesOnly = guests.map((g) => g.phone ? `${g.name}, ${g.phone}` : g.name).join('\n');
-    localStorage.setItem(namesOldStorageKey, namesOnly);
-  }, [guestsStorageKey, namesOldStorageKey, guests]);
+    setGuests(loadStoredGuests(customer));
+    setBaseUrl(loadStoredBaseUrl(customer));
+    setWaTemplate(localStorage.getItem(`wa_template_${customer.id}`) || DEFAULT_WA_TEMPLATE);
+  }, [customer.id, customer.slug]);
 
+  // Sync Guests to LocalStorage khusus akun ini
   useEffect(() => {
-    localStorage.setItem(baseUrlStorageKey, baseUrl);
-  }, [baseUrlStorageKey, baseUrl]);
+    saveGuestsForCustomer(customer, guests);
+  }, [customer, guests]);
+
+  const handleBaseUrlChange = (val: string) => {
+    setBaseUrl(val);
+    saveBaseUrlForCustomer(customer, val);
+  };
 
   useEffect(() => {
     localStorage.setItem(templateStorageKey, waTemplate);
@@ -218,15 +296,16 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
     });
 
     const cleanBase = baseUrl.trim().replace(/\/+$/, '');
+    const effectiveBase = cleanBase || previewBaseUrl.replace(/\/+$/, '');
 
     return guests.map((guest) => {
       const code = currentCodes[guest.name] || encodeGuestCode(guest.name);
-      const separator = cleanBase.includes('?') ? '&' : '?';
+      const separator = effectiveBase.includes('?') ? '&' : '?';
 
       const link =
         linkFormat === 'random'
-          ? `${cleanBase}${separator}c=${code}`
-          : `${cleanBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}`;
+          ? `${effectiveBase}${separator}c=${code}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}`;
 
       const lowerName = guest.name.toLowerCase();
       const lowerCode = code.toLowerCase();
@@ -239,7 +318,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         isRsvped,
       };
     });
-  }, [guests, baseUrl, existingRsvps, linkFormat, codesStorageKey]);
+  }, [guests, baseUrl, previewBaseUrl, existingRsvps, linkFormat, codesStorageKey]);
 
   // Filtered guest list based on search and phone filter
   const filteredGuests = useMemo(() => {
@@ -329,32 +408,53 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       return;
     }
 
+    let nextList: InvitedGuest[];
     if (editingGuest) {
-      // Update existing
-      setGuests((prev) =>
-        prev.map((g) =>
-          g.id === editingGuest.id
-            ? { ...g, name: trimmedName, phone: inputPhone.trim() }
-            : g
-        )
+      nextList = guests.map((g) =>
+        g.id === editingGuest.id
+          ? { ...g, name: trimmedName, phone: inputPhone.trim() }
+          : g
       );
     } else {
-      // Create new
       const newGuest: InvitedGuest = {
         id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         name: trimmedName,
         phone: inputPhone.trim(),
       };
-      setGuests((prev) => [newGuest, ...prev]);
+      nextList = [newGuest, ...guests];
     }
 
+    setGuests(nextList);
+    saveGuestsForCustomer(customer, nextList);
     setShowAddModal(false);
   };
 
   const handleDeleteGuest = (id: string, name: string) => {
     if (window.confirm(`Hapus "${name}" dari daftar tamu?`)) {
-      setGuests((prev) => prev.filter((g) => g.id !== id));
+      const nextList = guests.filter((g) => g.id !== id);
+      setGuests(nextList);
+      saveGuestsForCustomer(customer, nextList);
     }
+  };
+
+  const handleClearAllGuests = () => {
+    if (guests.length === 0) return;
+    if (
+      window.confirm(
+        `Hapus semua ${guests.length} tamu dari daftar undangan ${
+          customer.couple_names || customer.slug
+        }?`
+      )
+    ) {
+      setGuests([]);
+      saveGuestsForCustomer(customer, []);
+    }
+  };
+
+  const handleOpenBatchModal = () => {
+    setBatchText('');
+    setReplaceExisting(guests.length === 0 || isSampleGuestList(guests));
+    setShowBatchModal(true);
   };
 
   // Batch Import Handler
@@ -382,7 +482,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         const parts = line.split('\t');
         name = parts[0].trim();
         phone = parts.slice(1).join('\t').trim();
+      } else if (line.includes(';')) {
+        const parts = line.split(';');
+        name = parts[0].trim();
+        phone = parts.slice(1).join(';').trim();
       }
+
+      // Bersihkan awalan angka / bullet jika user copy-paste dari list bernomor
+      name = name.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim();
 
       return {
         id: `batch-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
@@ -391,7 +498,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       };
     });
 
-    setGuests((prev) => [...prev, ...imported]);
+    const shouldReplace = replaceExisting || (guests.length > 0 && isSampleGuestList(guests));
+    const nextList = shouldReplace ? imported : [...guests, ...imported];
+
+    setGuests(nextList);
+    saveGuestsForCustomer(customer, nextList);
     setBatchText('');
     setShowBatchModal(false);
   };
@@ -406,7 +517,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
             <span>Kelola Tamu & Kirim WhatsApp</span>
           </h1>
           <p className="text-xs text-[#5e7d87]">
-            Tambahkan tamu beserta nomornya untuk mengirim tautan personal langsung ke WhatsApp
+            Daftar tamu dan nomor WhatsApp tersimpan khusus pada akun undangan <span className="text-[#0f3b47] font-bold">{customer.couple_names || customer.slug}</span>
           </p>
         </div>
 
@@ -431,12 +542,23 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
 
           <button
             type="button"
-            onClick={() => setShowBatchModal(true)}
+            onClick={handleOpenBatchModal}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7e0cc] border border-[#d8cdb8] transition shadow-xs"
           >
             <Upload className="w-3.5 h-3.5 text-[#0f3b47]" />
             <span>Import Massal</span>
           </button>
+
+          {guests.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllGuests}
+              className="p-2 rounded-xl bg-[#fffdf9] border border-rose-200 text-rose-700 hover:text-rose-950 hover:bg-rose-50 transition shadow-xs"
+              title="Kosongkan seluruh daftar tamu akun ini"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
 
           <button
             type="button"
@@ -468,7 +590,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
             <Phone className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] text-[#5e7d87] block font-medium">Nomor WhatsApp Terdata:</span>
+            <span className="text-[11px] text-[#5e7d87] block font-medium">Nomor WhatsApp Tersedia:</span>
             <span className="text-lg font-bold text-emerald-800">
               {withPhoneCount} <span className="text-xs font-normal text-[#5e7d87]">({totalGuests > 0 ? ((withPhoneCount / totalGuests) * 100).toFixed(0) : 0}%)</span>
             </span>
@@ -492,16 +614,39 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       {/* Settings Row: Base URL & Format Option */}
       <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex-1 max-w-md">
-          <label className="block text-[11px] font-bold text-[#1f404b] mb-1">
-            Base URL Undangan
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-[11px] font-bold text-[#1f404b]">
+              Base URL Undangan
+            </label>
+            {baseUrl.trim() && (
+              <button
+                type="button"
+                onClick={() => handleBaseUrlChange('')}
+                className="text-[10px] text-rose-600 hover:text-rose-800 font-medium hover:underline cursor-pointer"
+                title="Kosongkan URL agar kembali ke preview arahan"
+              >
+                Kosongkan
+              </button>
+            )}
+          </div>
           <input
             type="text"
             value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://undangan.com/nama-pasangan"
+            onChange={(e) => handleBaseUrlChange(e.target.value)}
+            placeholder={previewBaseUrl}
             className="w-full px-3 py-1.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
           />
+          <p className="text-[10.5px] text-[#5e7d87] mt-1 leading-tight">
+            {baseUrl.trim() ? (
+              <span className="text-emerald-700 font-medium">
+                ✓ Tersimpan di akun {customer.couple_names || customer.slug}
+              </span>
+            ) : (
+              <span>
+                Format arahan: <code className="text-[#0f3b47] font-mono">{previewBaseUrl}</code> (Ketik teks untuk menyimpan ke akun ini)
+              </span>
+            )}
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -951,7 +1096,29 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
 
-            <div className="flex items-center justify-between pt-2">
+            {/* Opsi timpa (replace) atau tambah (append) */}
+            <div className="bg-[#f5eedf] border border-[#ded4be] rounded-2xl p-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={replaceExisting}
+                  onChange={(e) => setReplaceExisting(e.target.checked)}
+                  className="mt-0.5 rounded border-[#d8cdb8] text-[#0f3b47] focus:ring-[#0f3b47]"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-[#0f3b47] block">
+                    Gantikan seluruh daftar tamu yang ada saat ini
+                  </span>
+                  <span className="text-[11px] text-[#5e7d87] block leading-tight">
+                    {replaceExisting
+                      ? 'Daftar lama akan digantikan sepenuhnya oleh data impor ini.'
+                      : 'Data impor akan digabungkan/ditambahkan ke daftar tamu yang sudah ada.'}
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
               <span className="text-[11px] text-[#5e7d87]">
                 {batchText.split('\n').filter((l) => l.trim()).length} baris terdeteksi
               </span>
@@ -969,7 +1136,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
                   disabled={!batchText.trim()}
                   className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
                 >
-                  Tambahkan ke Daftar
+                  {replaceExisting ? 'Ganti Daftar Tamu' : 'Tambahkan ke Daftar'}
                 </button>
               </div>
             </div>

@@ -320,15 +320,24 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
           /* Render Active Tab */
           <div>
             {activeTab === 'overview' && (
-              <OverviewTab customer={selectedCustomer} />
+              <OverviewTab
+                key={selectedCustomer.id || selectedCustomer.slug}
+                customer={selectedCustomer}
+              />
             )}
 
             {activeTab === 'guests' && (
-              <GuestsTab customer={selectedCustomer} />
+              <GuestsTab
+                key={selectedCustomer.id || selectedCustomer.slug}
+                customer={selectedCustomer}
+              />
             )}
 
             {activeTab === 'links' && (
-              <GuestLinksTab customer={selectedCustomer} />
+              <GuestLinksTab
+                key={selectedCustomer.id || selectedCustomer.slug}
+                customer={selectedCustomer}
+              />
             )}
 
             {activeTab === 'customers' && isAdmin && (
