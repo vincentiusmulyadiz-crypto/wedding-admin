@@ -60,7 +60,7 @@ export const getEventFilterLabel = (val: string): string => {
       return 'Resepsi & Akad';
     case 'semuanya':
     case 'hadir_semua':
-      return 'Semua Acara';
+      return 'Hadir Semua Acara';
     default:
       return 'Semua Acara';
   }
@@ -335,7 +335,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         </div>
 
         {/* Tombol Opsi (Sembunyikan filter lanjutan, sorting, dan export CSV) */}
-        <div className="flex items-center gap-2 self-start sm:self-auto relative">
+        <div className="flex items-center gap-2 self-start sm:self-auto sm:relative">
           <button
             type="button"
             onClick={fetchGuests}
@@ -359,20 +359,20 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
             <ChevronDown className={`w-3 h-3 transition-transform ${showOptions ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Popover Menu Opsi */}
+          {/* Popover / Modal Menu Opsi */}
           {showOptions && (
             <>
               <div
-                className="fixed inset-0 z-20"
+                className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs sm:bg-transparent sm:backdrop-blur-none"
                 onClick={() => setShowOptions(false)}
               />
-              <div className="absolute right-0 top-11 mt-1 w-72 sm:w-80 bg-[#fffdfa] border border-[#d8cdb8] rounded-2xl shadow-xl p-4 z-30 space-y-4 text-xs animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-[#eee5d4] pb-2">
-                  <span className="font-bold text-[#0e2c34]">Opsi Tampilan & Tindakan</span>
+              <div className="fixed inset-x-4 top-20 sm:top-11 sm:absolute sm:inset-x-auto sm:right-0 sm:mt-1 max-w-sm sm:w-80 bg-[#fffdfa] border border-[#d8cdb8] rounded-2xl shadow-2xl sm:shadow-xl p-4.5 z-50 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between border-b border-[#eee5d4] pb-2.5">
+                  <span className="font-bold text-[#0e2c34] text-sm sm:text-xs">Opsi Tampilan & Tindakan</span>
                   <button
                     type="button"
                     onClick={() => setShowOptions(false)}
-                    className="text-[#6d8a93] hover:text-[#0e2c34]"
+                    className="p-1 rounded-lg text-[#6d8a93] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -387,7 +387,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                       setSortBy(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full py-1.5 px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34]"
+                    className="w-full py-2 sm:py-1.5 px-3 sm:px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] focus:outline-none focus:ring-1 focus:ring-[#0f3b47]"
                   >
                     <optgroup label="Berdasarkan Waktu & Nama">
                       <option value="created_at-desc">Waktu Terbaru</option>
@@ -408,7 +408,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                       <option value="event-adat-first">Adat Saja Dulu</option>
                       <option value="event-resepsi_adat-first">Resepsi & Adat Dulu</option>
                       <option value="event-resepsi_akad-first">Resepsi & Akad Dulu</option>
-                      <option value="event-semuanya-first">Semua Acara Dulu</option>
+                      <option value="event-semuanya-first">Hadir Semua Acara Dulu</option>
                     </optgroup>
                   </select>
                 </div>
@@ -422,7 +422,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                       setEventFilter(e.target.value as EventFilterType);
                       setPage(1);
                     }}
-                    className="w-full py-1.5 px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34]"
+                    className="w-full py-2 sm:py-1.5 px-3 sm:px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] focus:outline-none focus:ring-1 focus:ring-[#0f3b47]"
                   >
                     <option value="all">Semua Jenis Kehadiran</option>
                     <option value="resepsi_saja">Resepsi Saja (Termasuk Reservation)</option>
@@ -430,7 +430,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                     <option value="adat_saja">Adat Saja</option>
                     <option value="resepsi_adat">Resepsi & Adat</option>
                     <option value="resepsi_akad">Resepsi & Akad</option>
-                    <option value="semuanya">Semuanya</option>
+                    <option value="semuanya">Hadir Semua Acara</option>
                   </select>
                 </div>
 
@@ -440,7 +440,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                     type="button"
                     onClick={handleExportCsv}
                     disabled={exporting || totalCount === 0}
-                    className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-white text-xs font-bold disabled:opacity-40 transition"
+                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 sm:py-2 px-3 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-white text-xs font-bold disabled:opacity-40 transition shadow-xs"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>{exporting ? 'Mengekspor...' : 'Ekspor ke File CSV'}</span>
@@ -482,14 +482,14 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           </form>
 
           {/* Satu Filter Status Utama: Hadir / Tidak Hadir / Belum Pasti */}
-          <div className="inline-flex rounded-xl border border-[#ded4be] p-1 bg-[#faf6ee] text-xs">
+          <div className="inline-flex rounded-xl border border-[#ded4be] p-1 bg-[#faf6ee] text-xs overflow-x-auto max-w-full shrink-0">
             <button
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('all');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'all'
                   ? 'bg-[#0f3b47] text-white shadow-xs'
                   : 'text-[#52717b] hover:text-[#0e2c34]'
@@ -503,7 +503,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPrimaryStatusFilter('hadir');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'hadir'
                   ? 'bg-teal-700 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-teal-800'
@@ -518,7 +518,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPrimaryStatusFilter('tidak_hadir');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'tidak_hadir'
                   ? 'bg-rose-700 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-rose-800'
@@ -533,7 +533,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPrimaryStatusFilter('belum_pasti');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'belum_pasti'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-amber-800'
@@ -545,7 +545,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           </div>
         </div>
 
-        {/* Filter Cepat Jenis Kehadiran (Resepsi Saja, Akad Saja, Adat Saja, Resepsi dan Adat, Resepsi dan Akad, Semuanya) */}
+        {/* Filter Cepat Jenis Kehadiran (Resepsi Saja, Akad Saja, Adat Saja, Resepsi dan Adat, Resepsi dan Akad, Hadir Semua Acara) */}
         <div className="pt-2 border-t border-[#eee5d4] flex items-center gap-1.5 flex-wrap">
           <span className="text-[11px] font-bold text-[#52717b] mr-1">Jenis Kehadiran:</span>
           {(
@@ -556,7 +556,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               { key: 'adat_saja', label: 'Adat Saja' },
               { key: 'resepsi_adat', label: 'Resepsi & Adat' },
               { key: 'resepsi_akad', label: 'Resepsi & Akad' },
-              { key: 'semuanya', label: 'Semuanya' },
+              { key: 'semuanya', label: 'Hadir Semua Acara' },
             ] as { key: EventFilterType; label: string }[]
           ).map((item) => {
             const isActive = eventFilter === item.key;
