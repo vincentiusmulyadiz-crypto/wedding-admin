@@ -83,6 +83,102 @@ export function calculateCountdown(eventDateString: string | null | undefined): 
   }
 }
 
+export type EventCategory =
+  | 'resepsi_saja'
+  | 'akad_saja'
+  | 'adat_saja'
+  | 'resepsi_adat'
+  | 'resepsi_akad'
+  | 'semuanya'
+  | 'umum';
+
+export function classifyEventAttendance(
+  attendance: AttendanceType | string,
+  message?: string | null
+): {
+  category: EventCategory;
+  label: string;
+} {
+  const att = (attendance || '').toLowerCase().trim();
+  const msg = (message || '').toLowerCase();
+
+  // Extract event tag from message if present e.g. [Hadir: Reservation] or [Hadir: Adat, Reservation]
+  const tagMatch = msg.match(/\[hadir:\s*([^\]]+)\]/i);
+  const tagContent = tagMatch ? tagMatch[1].toLowerCase() : '';
+  const combined = `${att} ${tagContent} ${msg}`;
+
+  // Check event presence indicators
+  const hasAttendAll =
+    att === 'hadir_semua' ||
+    tagContent.includes('attend all') ||
+    tagContent.includes('semua acara') ||
+    tagContent.includes('all') ||
+    msg.includes('attend all') ||
+    msg.includes('semua acara');
+
+  const hasReservationOrResepsi =
+    att === 'hadir_resepsi' ||
+    tagContent.includes('resepsi') ||
+    tagContent.includes('reservation') ||
+    combined.includes('resepsi') ||
+    combined.includes('reservation');
+
+  const hasAkadOrMatrimony =
+    att === 'hadir_pemberkatan' ||
+    tagContent.includes('pemberkatan') ||
+    tagContent.includes('akad') ||
+    tagContent.includes('matrimony') ||
+    combined.includes('pemberkatan') ||
+    combined.includes('akad') ||
+    combined.includes('matrimony');
+
+  const hasAdat =
+    att === 'hadir_adat' ||
+    tagContent.includes('adat') ||
+    combined.includes('adat');
+
+  // 1. Semuanya / Attend All
+  if (hasAttendAll || (hasReservationOrResepsi && hasAkadOrMatrimony && hasAdat)) {
+    return { category: 'semuanya', label: 'Semua Acara' };
+  }
+
+  // 2. Resepsi dan Adat
+  if (hasReservationOrResepsi && hasAdat && !hasAkadOrMatrimony) {
+    return { category: 'resepsi_adat', label: 'Resepsi & Adat' };
+  }
+
+  // 3. Resepsi dan Akad / Pemberkatan (termasuk hadir_keduanya)
+  if (
+    att === 'hadir_keduanya' ||
+    tagContent.includes('keduanya') ||
+    (hasReservationOrResepsi && hasAkadOrMatrimony && !hasAdat)
+  ) {
+    return { category: 'resepsi_akad', label: 'Resepsi & Akad' };
+  }
+
+  // 4. Resepsi Saja (termasuk Reservation Only / Hadir: Reservation)
+  if (hasReservationOrResepsi && !hasAkadOrMatrimony && !hasAdat) {
+    return { category: 'resepsi_saja', label: 'Resepsi Saja' };
+  }
+
+  // 5. Akad Saja / Pemberkatan Saja
+  if (hasAkadOrMatrimony && !hasReservationOrResepsi && !hasAdat) {
+    return { category: 'akad_saja', label: 'Akad Saja' };
+  }
+
+  // 6. Adat Saja
+  if (hasAdat && !hasReservationOrResepsi && !hasAkadOrMatrimony) {
+    return { category: 'adat_saja', label: 'Adat Saja' };
+  }
+
+  // Default fallback if hadir without specific ceremony tag
+  if (att.startsWith('hadir') || att === 'attending') {
+    return { category: 'umum', label: 'Hadir' };
+  }
+
+  return { category: 'umum', label: '' };
+}
+
 export function getAttendanceBadge(attendance: AttendanceType | string): {
   group: 'hadir' | 'tidak_hadir' | 'belum_pasti';
   label: string;
@@ -91,7 +187,7 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
 } {
   const att = (attendance || '').toLowerCase().trim();
 
-  if (att.startsWith('hadir')) {
+  if (att.startsWith('hadir') || att === 'attending') {
     return {
       group: 'hadir',
       label: 'Akan Hadir',
@@ -100,7 +196,7 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
     };
   }
 
-  if (att === 'tidak_hadir') {
+  if (att === 'tidak_hadir' || att === 'not_attending') {
     return {
       group: 'tidak_hadir',
       label: 'Tidak Hadir',
@@ -127,33 +223,17 @@ export function getDetailedAttendanceInfo(
     colorClass: string;
     bgClass: string;
   };
+  eventCategory: EventCategory;
   eventDetail: string;
 } {
   const badge = getAttendanceBadge(attendance);
-  let eventDetail = '';
+  const { category, label } = classifyEventAttendance(attendance, message);
 
-  const att = (attendance || '').toLowerCase().trim();
-  if (att === 'hadir_semua') {
-    eventDetail = 'Semua Acara';
-  } else if (att === 'hadir_resepsi') {
-    eventDetail = 'Resepsi Saja';
-  } else if (att === 'hadir_adat') {
-    eventDetail = 'Adat Saja';
-  } else if (att === 'hadir_pemberkatan') {
-    eventDetail = 'Pemberkatan Saja';
-  } else if (att === 'hadir_keduanya') {
-    eventDetail = 'Pemberkatan & Resepsi';
-  }
-
-  // If eventDetail is still empty, extract from message tag e.g. [Hadir: ...]
-  if (!eventDetail && message) {
-    const match = message.match(/^\[Hadir:\s*([^\]]+)\]/i);
-    if (match) {
-      eventDetail = match[1].trim();
-    }
-  }
-
-  return { badge, eventDetail };
+  return {
+    badge,
+    eventCategory: category,
+    eventDetail: label,
+  };
 }
 
 export function translateAuthError(errorMsg: string): string {

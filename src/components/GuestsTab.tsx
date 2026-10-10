@@ -32,82 +32,51 @@ interface GuestsTabProps {
 
 const PAGE_SIZE = 25;
 
-const matchEvent = (r: Rsvp, filter: string): boolean => {
-  if (filter === 'all') return true;
-  const { eventDetail } = getDetailedAttendanceInfo(r.attendance, r.message);
-  const detail = (eventDetail || '').toLowerCase();
-  const att = (r.attendance || '').toLowerCase();
-  const msg = (r.message || '').toLowerCase();
+export type StatusFilterType = 'all' | 'hadir' | 'tidak_hadir' | 'belum_pasti';
+export type EventFilterType =
+  | 'all'
+  | 'resepsi_saja'
+  | 'akad_saja'
+  | 'adat_saja'
+  | 'resepsi_adat'
+  | 'resepsi_akad'
+  | 'semuanya';
 
-  if (filter === 'hadir_adat') {
-    return (
-      att === 'hadir_adat' ||
-      detail.includes('adat') ||
-      msg.includes('[hadir: adat]') ||
-      (msg.includes('adat') && !msg.includes('resepsi') && !msg.includes('pemberkatan'))
-    );
-  }
-  if (filter === 'hadir_resepsi') {
-    return (
-      att === 'hadir_resepsi' ||
-      detail.includes('resepsi') ||
-      detail.includes('reservation') ||
-      msg.includes('[hadir: resepsi]') ||
-      msg.includes('[hadir: reservation]')
-    );
-  }
-  if (filter === 'hadir_pemberkatan') {
-    return (
-      att === 'hadir_pemberkatan' ||
-      detail.includes('pemberkatan') ||
-      detail.includes('akad') ||
-      msg.includes('[hadir: pemberkatan]') ||
-      msg.includes('[hadir: akad]')
-    );
-  }
-  if (filter === 'hadir_keduanya') {
-    return (
-      att === 'hadir_keduanya' ||
-      detail.includes('keduanya') ||
-      msg.includes('keduanya')
-    );
-  }
-  if (filter === 'hadir_semua') {
-    return (
-      att === 'hadir_semua' ||
-      detail.includes('semua') ||
-      detail.includes('all') ||
-      msg.includes('attend all') ||
-      msg.includes('semua acara')
-    );
-  }
-  return att === filter;
-};
-
-const getEventFilterLabel = (val: string): string => {
+export const getEventFilterLabel = (val: string): string => {
   switch (val) {
-    case 'hadir_adat': return 'Adat Saja';
-    case 'hadir_resepsi': return 'Resepsi Saja';
-    case 'hadir_pemberkatan': return 'Pemberkatan Saja';
-    case 'hadir_keduanya': return 'Pemberkatan & Resepsi';
-    case 'hadir_semua': return 'Semua Acara';
-    default: return val;
+    case 'resepsi_saja':
+    case 'hadir_resepsi':
+      return 'Resepsi Saja';
+    case 'akad_saja':
+    case 'hadir_pemberkatan':
+      return 'Akad Saja';
+    case 'adat_saja':
+    case 'hadir_adat':
+      return 'Adat Saja';
+    case 'resepsi_adat':
+      return 'Resepsi & Adat';
+    case 'resepsi_akad':
+    case 'hadir_keduanya':
+      return 'Resepsi & Akad';
+    case 'semuanya':
+    case 'hadir_semua':
+      return 'Semua Acara';
+    default:
+      return 'Semua Acara';
   }
 };
 
 export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
-  const [rsvps, setRsvps] = useState<Rsvp[]>([]);
-  const [totalCount, setTotalCount] = useState<number>(0);
+  const [allRsvps, setAllRsvps] = useState<Rsvp[]>([]);
   const [page, setPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [primaryStatusFilter, setPrimaryStatusFilter] = useState<'all' | 'hadir' | 'tidak_hadir' | 'belum_pasti'>('all');
+  const [primaryStatusFilter, setPrimaryStatusFilter] = useState<StatusFilterType>('all');
+  const [eventFilter, setEventFilter] = useState<EventFilterType>('all');
 
   // Options popover state
   const [showOptions, setShowOptions] = useState<boolean>(false);
-  const [eventFilter, setEventFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<string>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<string>('created_at-desc');
 
   // Detail panel state (Side drawer / Bottom sheet)
   const [selectedGuest, setSelectedGuest] = useState<Rsvp | null>(null);
@@ -125,69 +94,17 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
     try {
       const supabase = getSupabase();
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
 
-      let query = supabase
+      // Fetch all RSVPs for this customer from Supabase
+      const { data, error } = await supabase
         .from('rsvps')
-        .select('*', { count: 'exact' })
-        .eq('customer_id', customer.id);
-
-      // Prioritas 1: Jika filter acara spesifik dipilih (misal: hadir adat saja)
-      if (eventFilter !== 'all') {
-        if (eventFilter === 'hadir_adat') {
-          query = query.or('attendance.eq.hadir_adat,message.ilike.%[Hadir:%Adat%]%');
-        } else if (eventFilter === 'hadir_resepsi') {
-          query = query.or('attendance.eq.hadir_resepsi,message.ilike.%[Hadir:%Resepsi%]%,message.ilike.%[Hadir:%Reservation%]%');
-        } else if (eventFilter === 'hadir_pemberkatan') {
-          query = query.or('attendance.eq.hadir_pemberkatan,message.ilike.%[Hadir:%Pemberkatan%]%,message.ilike.%[Hadir:%Akad%]%');
-        } else if (eventFilter === 'hadir_keduanya') {
-          query = query.eq('attendance', 'hadir_keduanya');
-        } else if (eventFilter === 'hadir_semua') {
-          query = query.or('attendance.eq.hadir_semua,message.ilike.%[Hadir:%Attend All%]%,message.ilike.%[Hadir:%Semua Acara%]%');
-        } else {
-          query = query.eq('attendance', eventFilter);
-        }
-      } else {
-        // Filter status umum jika semua jenis acara
-        if (primaryStatusFilter === 'hadir') {
-          query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
-        } else if (primaryStatusFilter === 'tidak_hadir') {
-          query = query.eq('attendance', 'tidak_hadir');
-        } else if (primaryStatusFilter === 'belum_pasti') {
-          query = query.eq('attendance', 'belum_pasti');
-        }
-      }
-
-      if (searchQuery.trim()) {
-        const term = `%${searchQuery.trim()}%`;
-        query = query.or(`name.ilike.${term},guest_param.ilike.${term},message.ilike.${term}`);
-      }
-
-      query = query.order(sortBy, { ascending: sortOrder === 'asc' });
-      query = query.range(from, to);
-
-      const { data, count, error } = await query;
+        .select('*')
+        .eq('customer_id', customer.id)
+        .order('created_at', { ascending: false });
 
       // Fallback for Romeo & Juliet demo data
       if ((error || !data || data.length === 0) && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
-        let list = [...DEMO_ROMEO_JULIET_RSVPS];
-        if (eventFilter !== 'all') {
-          list = list.filter((r) => matchEvent(r, eventFilter));
-        } else if (primaryStatusFilter === 'hadir') {
-          list = list.filter((r) => r.attendance.startsWith('hadir'));
-        } else if (primaryStatusFilter === 'tidak_hadir') {
-          list = list.filter((r) => r.attendance === 'tidak_hadir');
-        } else if (primaryStatusFilter === 'belum_pasti') {
-          list = list.filter((r) => r.attendance === 'belum_pasti');
-        }
-
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          list = list.filter((r) => r.name.toLowerCase().includes(q) || (r.message && r.message.toLowerCase().includes(q)));
-        }
-        setRsvps(list);
-        setTotalCount(list.length);
+        setAllRsvps(DEMO_ROMEO_JULIET_RSVPS);
         setFetchError(null);
         return;
       }
@@ -198,22 +115,127 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         return;
       }
 
-      let resultRows = (data as Rsvp[]) || [];
-      if (eventFilter !== 'all') {
-        resultRows = resultRows.filter((r) => matchEvent(r, eventFilter));
-      }
-      setRsvps(resultRows);
-      setTotalCount(count ?? resultRows.length);
+      setAllRsvps((data as Rsvp[]) || []);
     } catch (err) {
       console.error('Fetch error:', err);
+      setFetchError(String(err));
     } finally {
       setLoading(false);
     }
-  }, [customer?.id, page, primaryStatusFilter, eventFilter, searchQuery, sortBy, sortOrder]);
+  }, [customer?.id, customer?.slug]);
 
   useEffect(() => {
     fetchGuests();
   }, [fetchGuests]);
+
+  // Client-side filtering & sorting
+  const filteredAndSortedRsvps = React.useMemo(() => {
+    return allRsvps.filter((r) => {
+      const { badge, eventCategory } = getDetailedAttendanceInfo(r.attendance, r.message);
+
+      // 1. Status Filter: 'all' | 'hadir' | 'tidak_hadir' | 'belum_pasti'
+      if (primaryStatusFilter !== 'all') {
+        if (badge.group !== primaryStatusFilter) {
+          return false;
+        }
+      }
+
+      // 2. Jenis Kehadiran Filter: 'all' | 'resepsi_saja' | 'akad_saja' | 'adat_saja' | 'resepsi_adat' | 'resepsi_akad' | 'semuanya'
+      if (eventFilter !== 'all') {
+        // If an event filter is chosen, the guest must match that event category
+        if (eventCategory !== eventFilter) {
+          return false;
+        }
+      }
+
+      // 3. Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = (r.name || '').toLowerCase().includes(q);
+        const matchParam = (r.guest_param || '').toLowerCase().includes(q);
+        const matchMsg = (r.message || '').toLowerCase().includes(q);
+        if (!matchName && !matchParam && !matchMsg) {
+          return false;
+        }
+      }
+
+      return true;
+    }).sort((a, b) => {
+      const { badge: badgeA, eventCategory: catA } = getDetailedAttendanceInfo(a.attendance, a.message);
+      const { badge: badgeB, eventCategory: catB } = getDetailedAttendanceInfo(b.attendance, b.message);
+
+      switch (sortBy) {
+        case 'created_at-desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'created_at-asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'name-asc':
+          return (a.name || '').localeCompare(b.name || '', 'id');
+        case 'name-desc':
+          return (b.name || '').localeCompare(a.name || '', 'id');
+        case 'guests-desc':
+          return (b.guests || 1) - (a.guests || 1);
+        case 'guests-asc':
+          return (a.guests || 1) - (b.guests || 1);
+
+        // Sorting Status Kehadiran
+        case 'status-hadir-first': {
+          const rank = { hadir: 1, belum_pasti: 2, tidak_hadir: 3 };
+          return (rank[badgeA.group] || 9) - (rank[badgeB.group] || 9);
+        }
+        case 'status-tidak-first': {
+          const rank = { tidak_hadir: 1, belum_pasti: 2, hadir: 3 };
+          return (rank[badgeA.group] || 9) - (rank[badgeB.group] || 9);
+        }
+        case 'status-belum-first': {
+          const rank = { belum_pasti: 1, hadir: 2, tidak_hadir: 3 };
+          return (rank[badgeA.group] || 9) - (rank[badgeB.group] || 9);
+        }
+
+        // Sorting Jenis Kehadiran
+        case 'event-resepsi-first': {
+          const isA = catA === 'resepsi_saja' ? 0 : 1;
+          const isB = catB === 'resepsi_saja' ? 0 : 1;
+          return isA - isB;
+        }
+        case 'event-akad-first': {
+          const isA = catA === 'akad_saja' ? 0 : 1;
+          const isB = catB === 'akad_saja' ? 0 : 1;
+          return isA - isB;
+        }
+        case 'event-adat-first': {
+          const isA = catA === 'adat_saja' ? 0 : 1;
+          const isB = catB === 'adat_saja' ? 0 : 1;
+          return isA - isB;
+        }
+        case 'event-resepsi_adat-first': {
+          const isA = catA === 'resepsi_adat' ? 0 : 1;
+          const isB = catB === 'resepsi_adat' ? 0 : 1;
+          return isA - isB;
+        }
+        case 'event-resepsi_akad-first': {
+          const isA = catA === 'resepsi_akad' ? 0 : 1;
+          const isB = catB === 'resepsi_akad' ? 0 : 1;
+          return isA - isB;
+        }
+        case 'event-semuanya-first': {
+          const isA = catA === 'semuanya' ? 0 : 1;
+          const isB = catB === 'semuanya' ? 0 : 1;
+          return isA - isB;
+        }
+
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+  }, [allRsvps, primaryStatusFilter, eventFilter, searchQuery, sortBy]);
+
+  const totalCount = filteredAndSortedRsvps.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const paginatedRsvps = React.useMemo(() => {
+    const from = (page - 1) * PAGE_SIZE;
+    return filteredAndSortedRsvps.slice(from, from + PAGE_SIZE);
+  }, [filteredAndSortedRsvps, page]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,7 +262,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         if (selectedGuest?.id === itemToDelete.id) {
           setSelectedGuest(null);
         }
-        if (rsvps.length === 1 && page > 1) {
+        if (paginatedRsvps.length === 1 && page > 1) {
           setPage(page - 1);
         } else {
           fetchGuests();
@@ -257,45 +279,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
   const handleExportCsv = async () => {
     setExporting(true);
     try {
-      const supabase = getSupabase();
-      let query = supabase
-        .from('rsvps')
-        .select('*')
-        .eq('customer_id', customer.id)
-        .order('created_at', { ascending: false });
-
-      if (eventFilter !== 'all') {
-        if (eventFilter === 'hadir_adat') {
-          query = query.or('attendance.eq.hadir_adat,message.ilike.%[Hadir:%Adat%]%');
-        } else if (eventFilter === 'hadir_resepsi') {
-          query = query.or('attendance.eq.hadir_resepsi,message.ilike.%[Hadir:%Resepsi%]%,message.ilike.%[Hadir:%Reservation%]%');
-        } else if (eventFilter === 'hadir_pemberkatan') {
-          query = query.or('attendance.eq.hadir_pemberkatan,message.ilike.%[Hadir:%Pemberkatan%]%,message.ilike.%[Hadir:%Akad%]%');
-        } else if (eventFilter === 'hadir_keduanya') {
-          query = query.eq('attendance', 'hadir_keduanya');
-        } else if (eventFilter === 'hadir_semua') {
-          query = query.or('attendance.eq.hadir_semua,message.ilike.%[Hadir:%Attend All%]%,message.ilike.%[Hadir:%Semua Acara%]%');
-        } else {
-          query = query.eq('attendance', eventFilter);
-        }
-      } else if (primaryStatusFilter === 'hadir') {
-        query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
-      } else if (primaryStatusFilter === 'tidak_hadir') {
-        query = query.eq('attendance', 'tidak_hadir');
-      } else if (primaryStatusFilter === 'belum_pasti') {
-        query = query.eq('attendance', 'belum_pasti');
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        showToast('Gagal mengekspor data: ' + error.message, 'error');
-        return;
-      }
-
-      let exportItems = ((data as Rsvp[]) || []);
-      if (eventFilter !== 'all') {
-        exportItems = exportItems.filter((r) => matchEvent(r, eventFilter));
-      }
+      const exportItems = filteredAndSortedRsvps;
 
       const rowsData = exportItems.map((item) => {
         const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
@@ -332,7 +316,6 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const startItem = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endItem = Math.min(page * PAGE_SIZE, totalCount);
 
@@ -366,7 +349,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
             type="button"
             onClick={() => setShowOptions(!showOptions)}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs ${
-              showOptions || eventFilter !== 'all' || sortBy !== 'created_at'
+              showOptions || eventFilter !== 'all' || sortBy !== 'created_at-desc'
                 ? 'bg-[#0f3b47] text-white border-[#0f3b47]'
                 : 'bg-[#fffdfa] text-[#0e2c34] border-[#ded4be] hover:bg-[#f0ebd9]'
             }`}
@@ -399,41 +382,55 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 <div className="space-y-1.5">
                   <label className="font-semibold text-[#0e2c34] block">Urutan Tampilan:</label>
                   <select
-                    value={`${sortBy}-${sortOrder}`}
+                    value={sortBy}
                     onChange={(e) => {
-                      const [sb, so] = e.target.value.split('-');
-                      setSortBy(sb);
-                      setSortOrder(so as 'asc' | 'desc');
+                      setSortBy(e.target.value);
                       setPage(1);
                     }}
                     className="w-full py-1.5 px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34]"
                   >
-                    <option value="created_at-desc">Waktu Terbaru</option>
-                    <option value="created_at-asc">Waktu Terlama</option>
-                    <option value="name-asc">Nama Tamu (A - Z)</option>
-                    <option value="name-desc">Nama Tamu (Z - A)</option>
-                    <option value="guests-desc">Jumlah Tamu Terbanyak</option>
-                    <option value="guests-asc">Jumlah Tamu Tersedikit</option>
+                    <optgroup label="Berdasarkan Waktu & Nama">
+                      <option value="created_at-desc">Waktu Terbaru</option>
+                      <option value="created_at-asc">Waktu Terlama</option>
+                      <option value="name-asc">Nama Tamu (A - Z)</option>
+                      <option value="name-desc">Nama Tamu (Z - A)</option>
+                      <option value="guests-desc">Jumlah Tamu Terbanyak</option>
+                      <option value="guests-asc">Jumlah Tamu Tersedikit</option>
+                    </optgroup>
+                    <optgroup label="Prioritas Status Kehadiran">
+                      <option value="status-hadir-first">Hadir Dulu</option>
+                      <option value="status-tidak-first">Tidak Hadir Dulu</option>
+                      <option value="status-belum-first">Belum Pasti Dulu</option>
+                    </optgroup>
+                    <optgroup label="Prioritas Jenis Kehadiran">
+                      <option value="event-resepsi-first">Resepsi Saja Dulu</option>
+                      <option value="event-akad-first">Akad Saja Dulu</option>
+                      <option value="event-adat-first">Adat Saja Dulu</option>
+                      <option value="event-resepsi_adat-first">Resepsi & Adat Dulu</option>
+                      <option value="event-resepsi_akad-first">Resepsi & Akad Dulu</option>
+                      <option value="event-semuanya-first">Semua Acara Dulu</option>
+                    </optgroup>
                   </select>
                 </div>
 
                 {/* Filter Rangkaian Acara Lanjutan */}
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-[#0e2c34] block">Filter Acara Spesifik:</label>
+                  <label className="font-semibold text-[#0e2c34] block">Filter Jenis Kehadiran:</label>
                   <select
                     value={eventFilter}
                     onChange={(e) => {
-                      setEventFilter(e.target.value);
+                      setEventFilter(e.target.value as EventFilterType);
                       setPage(1);
                     }}
                     className="w-full py-1.5 px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34]"
                   >
-                    <option value="all">Semua Jenis Acara</option>
-                    <option value="hadir_semua">Semua Acara</option>
-                    <option value="hadir_resepsi">Resepsi Saja</option>
-                    <option value="hadir_adat">Adat Saja</option>
-                    <option value="hadir_pemberkatan">Pemberkatan Saja</option>
-                    <option value="hadir_keduanya">Pemberkatan & Resepsi</option>
+                    <option value="all">Semua Jenis Kehadiran</option>
+                    <option value="resepsi_saja">Resepsi Saja (Termasuk Reservation)</option>
+                    <option value="akad_saja">Akad Saja</option>
+                    <option value="adat_saja">Adat Saja</option>
+                    <option value="resepsi_adat">Resepsi & Adat</option>
+                    <option value="resepsi_akad">Resepsi & Akad</option>
+                    <option value="semuanya">Semuanya</option>
                   </select>
                 </div>
 
@@ -466,7 +463,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         </div>
       )}
 
-      {/* 2. Tampilan Awal: Kolom Pencarian, Filter Status & Filter Acara Spesifik */}
+      {/* 2. Tampilan Awal: Kolom Pencarian & Filter Status Utama */}
       <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-3 sm:p-4 shadow-xs space-y-3 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Kolom Pencarian */}
@@ -484,17 +481,16 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
             />
           </form>
 
-          {/* Satu Filter Status Utama */}
+          {/* Satu Filter Status Utama: Hadir / Tidak Hadir / Belum Pasti */}
           <div className="inline-flex rounded-xl border border-[#ded4be] p-1 bg-[#faf6ee] text-xs">
             <button
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('all');
-                setEventFilter('all');
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition ${
-                primaryStatusFilter === 'all' && eventFilter === 'all'
+                primaryStatusFilter === 'all'
                   ? 'bg-[#0f3b47] text-white shadow-xs'
                   : 'text-[#52717b] hover:text-[#0e2c34]'
               }`}
@@ -508,7 +504,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
-                primaryStatusFilter === 'hadir' || eventFilter !== 'all'
+                primaryStatusFilter === 'hadir'
                   ? 'bg-teal-700 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-teal-800'
               }`}
@@ -520,7 +516,6 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('tidak_hadir');
-                setEventFilter('all');
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
@@ -536,7 +531,6 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('belum_pasti');
-                setEventFilter('all');
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
@@ -551,32 +545,46 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           </div>
         </div>
 
-        {/* Badge Indikator Filter Acara Spesifik Aktif */}
-        {eventFilter !== 'all' && (
-          <div className="flex items-center gap-2 pt-2 border-t border-[#eee5d4] flex-wrap">
-            <span className="text-[11px] text-[#52717b] font-medium">Filter acara spesifik aktif:</span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-50 border border-teal-300 text-teal-900 text-xs font-bold">
-              <span>Hanya {getEventFilterLabel(eventFilter)}</span>
+        {/* Filter Cepat Jenis Kehadiran (Resepsi Saja, Akad Saja, Adat Saja, Resepsi dan Adat, Resepsi dan Akad, Semuanya) */}
+        <div className="pt-2 border-t border-[#eee5d4] flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] font-bold text-[#52717b] mr-1">Jenis Kehadiran:</span>
+          {(
+            [
+              { key: 'all', label: 'Semua' },
+              { key: 'resepsi_saja', label: 'Resepsi Saja' },
+              { key: 'akad_saja', label: 'Akad Saja' },
+              { key: 'adat_saja', label: 'Adat Saja' },
+              { key: 'resepsi_adat', label: 'Resepsi & Adat' },
+              { key: 'resepsi_akad', label: 'Resepsi & Akad' },
+              { key: 'semuanya', label: 'Semuanya' },
+            ] as { key: EventFilterType; label: string }[]
+          ).map((item) => {
+            const isActive = eventFilter === item.key;
+            return (
               <button
+                key={item.key}
                 type="button"
                 onClick={() => {
-                  setEventFilter('all');
+                  setEventFilter(item.key);
                   setPage(1);
                 }}
-                className="hover:bg-teal-100 rounded-full p-0.5 text-teal-800 transition"
-                title="Hapus filter acara spesifik"
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${
+                  isActive
+                    ? 'bg-[#0f3b47] text-white border-[#0f3b47] shadow-xs'
+                    : 'bg-[#faf6ee] text-[#52717b] border-[#ded4be] hover:border-[#0f3b47] hover:text-[#0e2c34]'
+                }`}
               >
-                <X className="w-3 h-3" />
+                {item.label}
               </button>
-            </span>
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
 
       {/* 3. Daftar Ringkas (Tabel / Card) */}
       {loading ? (
         <TableSkeleton rows={8} />
-      ) : rsvps.length === 0 ? (
+      ) : paginatedRsvps.length === 0 ? (
         <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-12 text-center space-y-3 shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
           <div className="w-12 h-12 rounded-full bg-[#f0ebd9] border border-[#ded4be] flex items-center justify-center mx-auto text-[#0f3b47]">
             <Users className="w-6 h-6" />
@@ -621,7 +629,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#eee5d4]">
-                {rsvps.map((item) => {
+                {paginatedRsvps.map((item) => {
                   const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
                   return (
                     <tr
@@ -681,7 +689,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
           {/* Mobile Stacked Cards View */}
           <div className="md:hidden space-y-3">
-            {rsvps.map((item) => {
+            {paginatedRsvps.map((item) => {
               const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
               return (
                 <div

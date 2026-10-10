@@ -86,33 +86,35 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
       let countAttendAll = 0;
       let countResepsi = 0;
       let countAdat = 0;
-      let countPemberkatan = 0;
-      let countKeduanya = 0;
+      let countAkad = 0;
+      let countResepsiAdat = 0;
+      let countResepsiAkad = 0;
       let countHadirUmum = 0;
 
       rows.forEach((r) => {
-        const att = (r.attendance || '').toLowerCase();
-        const msg = (r.message || '').toLowerCase();
+        const { badge, eventCategory } = getDetailedAttendanceInfo(r.attendance, r.message);
         const guestCount = typeof r.guests === 'number' ? r.guests : parseInt(String(r.guests || 1), 10) || 1;
 
-        if (att.startsWith('hadir')) {
+        if (badge.group === 'hadir') {
           hadir++;
           totalPaxHadir += guestCount;
 
-          if (att === 'hadir_semua' || msg.includes('attend all') || msg.includes('semua acara')) {
+          if (eventCategory === 'semuanya') {
             countAttendAll++;
-          } else if (att === 'hadir_resepsi' || msg.includes('reservation') || msg.includes('resepsi saja')) {
+          } else if (eventCategory === 'resepsi_saja') {
             countResepsi++;
-          } else if (att === 'hadir_adat' || msg.includes('adat saja')) {
+          } else if (eventCategory === 'akad_saja') {
+            countAkad++;
+          } else if (eventCategory === 'adat_saja') {
             countAdat++;
-          } else if (att === 'hadir_pemberkatan' || msg.includes('pemberkatan saja')) {
-            countPemberkatan++;
-          } else if (att === 'hadir_keduanya' || msg.includes('keduanya')) {
-            countKeduanya++;
+          } else if (eventCategory === 'resepsi_adat') {
+            countResepsiAdat++;
+          } else if (eventCategory === 'resepsi_akad') {
+            countResepsiAkad++;
           } else {
             countHadirUmum++;
           }
-        } else if (att === 'tidak_hadir') {
+        } else if (badge.group === 'tidak_hadir') {
           tidakHadir++;
         } else {
           belumPasti++;
@@ -131,9 +133,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
         countAttendAll,
         countResepsi,
         countAdat,
-        countPemberkatan,
-        countKeduanya,
-        countHadirUmum,
+        countPemberkatan: countAkad,
+        countKeduanya: countResepsiAkad,
+        countHadirUmum: countResepsiAdat + countHadirUmum,
       });
 
       // Ambil ucapan terbaru
