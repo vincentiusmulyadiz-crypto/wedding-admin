@@ -74,8 +74,24 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
   const [primaryStatusFilter, setPrimaryStatusFilter] = useState<StatusFilterType>('all');
   const [eventFilter, setEventFilter] = useState<EventFilterType>('all');
 
-  // Options popover state
-  const [showOptions, setShowOptions] = useState<boolean>(false);
+  // Filter popover state & draft filters
+  const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
+  const [draftSortBy, setDraftSortBy] = useState<string>('created_at-desc');
+  const [draftEventFilter, setDraftEventFilter] = useState<EventFilterType>('all');
+
+  // Sync draft states when opening filter modal
+  const handleOpenFilter = () => {
+    setDraftSortBy(sortBy);
+    setDraftEventFilter(eventFilter);
+    setShowFilterModal(true);
+  };
+
+  const handleApplyFilter = () => {
+    setSortBy(draftSortBy);
+    setEventFilter(draftEventFilter);
+    setPage(1);
+    setShowFilterModal(false);
+  };
   const [sortBy, setSortBy] = useState<string>('created_at-desc');
 
   // Detail panel state (Side drawer / Bottom sheet)
@@ -307,7 +323,6 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       const filename = `konfirmasi-tamu-${customer.slug}-${dateStr}.csv`;
       exportToCsv(filename, headers, rowsData);
       showToast('File CSV berhasil diunduh!', 'success');
-      setShowOptions(false);
     } catch (err) {
       console.error('Export CSV error:', err);
       showToast('Terjadi kesalahan saat export CSV', 'error');
@@ -334,7 +349,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           </p>
         </div>
 
-        {/* Tombol Opsi (Sembunyikan filter lanjutan, sorting, dan export CSV) */}
+        {/* Tombol Ekspor CSV & Filter */}
         <div className="flex items-center gap-2 self-start sm:self-auto sm:relative">
           <button
             type="button"
@@ -345,33 +360,46 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
             <RotateCw className="w-4 h-4" />
           </button>
 
+          {/* Tombol Ekspor CSV Mandiri */}
           <button
             type="button"
-            onClick={() => setShowOptions(!showOptions)}
+            onClick={handleExportCsv}
+            disabled={exporting || totalCount === 0}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#fffdfa] text-[#0e2c34] border border-[#ded4be] hover:bg-[#f0ebd9] disabled:opacity-40 transition shadow-xs"
+            title="Ekspor seluruh data konfirmasi ke file CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-[#0f3b47]" />
+            <span>{exporting ? 'Mengekspor...' : 'Ekspor CSV'}</span>
+          </button>
+
+          {/* Tombol Filter */}
+          <button
+            type="button"
+            onClick={handleOpenFilter}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs ${
-              showOptions || eventFilter !== 'all' || sortBy !== 'created_at-desc'
+              showFilterModal || eventFilter !== 'all' || sortBy !== 'created_at-desc'
                 ? 'bg-[#0f3b47] text-white border-[#0f3b47]'
                 : 'bg-[#fffdfa] text-[#0e2c34] border-[#ded4be] hover:bg-[#f0ebd9]'
             }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Opsi</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${showOptions ? 'rotate-180' : ''}`} />
+            <span>Filter</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${showFilterModal ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Popover / Modal Menu Opsi */}
-          {showOptions && (
+          {/* Modal / Popover Filter */}
+          {showFilterModal && (
             <>
               <div
                 className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs sm:bg-transparent sm:backdrop-blur-none"
-                onClick={() => setShowOptions(false)}
+                onClick={() => setShowFilterModal(false)}
               />
               <div className="fixed inset-x-4 top-20 sm:top-11 sm:absolute sm:inset-x-auto sm:right-0 sm:mt-1 max-w-sm sm:w-80 bg-[#fffdfa] border border-[#d8cdb8] rounded-2xl shadow-2xl sm:shadow-xl p-4.5 z-50 space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between border-b border-[#eee5d4] pb-2.5">
-                  <span className="font-bold text-[#0e2c34] text-sm sm:text-xs">Opsi Tampilan & Tindakan</span>
+                  <span className="font-bold text-[#0e2c34] text-sm sm:text-xs">Pengaturan Filter & Urutan</span>
                   <button
                     type="button"
-                    onClick={() => setShowOptions(false)}
+                    onClick={() => setShowFilterModal(false)}
                     className="p-1 rounded-lg text-[#6d8a93] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition"
                   >
                     <X className="w-4 h-4" />
@@ -382,11 +410,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 <div className="space-y-1.5">
                   <label className="font-semibold text-[#0e2c34] block">Urutan Tampilan:</label>
                   <select
-                    value={sortBy}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setPage(1);
-                    }}
+                    value={draftSortBy}
+                    onChange={(e) => setDraftSortBy(e.target.value)}
                     className="w-full py-2 sm:py-1.5 px-3 sm:px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] focus:outline-none focus:ring-1 focus:ring-[#0f3b47]"
                   >
                     <optgroup label="Berdasarkan Waktu & Nama">
@@ -413,15 +438,12 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                   </select>
                 </div>
 
-                {/* Filter Rangkaian Acara Lanjutan */}
+                {/* Filter Jenis Kehadiran */}
                 <div className="space-y-1.5">
                   <label className="font-semibold text-[#0e2c34] block">Filter Jenis Kehadiran:</label>
                   <select
-                    value={eventFilter}
-                    onChange={(e) => {
-                      setEventFilter(e.target.value as EventFilterType);
-                      setPage(1);
-                    }}
+                    value={draftEventFilter}
+                    onChange={(e) => setDraftEventFilter(e.target.value as EventFilterType)}
                     className="w-full py-2 sm:py-1.5 px-3 sm:px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] focus:outline-none focus:ring-1 focus:ring-[#0f3b47]"
                   >
                     <option value="all">Semua Jenis Kehadiran</option>
@@ -434,16 +456,29 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                   </select>
                 </div>
 
-                {/* Export CSV Button */}
-                <div className="pt-2 border-t border-[#eee5d4]">
+                {/* Tombol Terapkan Filter & Reset */}
+                <div className="pt-2 border-t border-[#eee5d4] flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleExportCsv}
-                    disabled={exporting || totalCount === 0}
-                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 sm:py-2 px-3 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-white text-xs font-bold disabled:opacity-40 transition shadow-xs"
+                    onClick={() => {
+                      setDraftSortBy('created_at-desc');
+                      setDraftEventFilter('all');
+                      setSortBy('created_at-desc');
+                      setEventFilter('all');
+                      setPage(1);
+                      setShowFilterModal(false);
+                    }}
+                    className="py-2.5 sm:py-2 px-3 rounded-xl bg-[#faf6ee] hover:bg-[#f0ebd9] text-[#52717b] hover:text-[#0e2c34] border border-[#ded4be] text-xs font-semibold transition"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{exporting ? 'Mengekspor...' : 'Ekspor ke File CSV'}</span>
+                    Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyFilter}
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 sm:py-2 px-3 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-white text-xs font-bold transition shadow-xs"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span>Terapkan Filter</span>
                   </button>
                 </div>
               </div>
