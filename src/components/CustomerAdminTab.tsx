@@ -184,7 +184,7 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
           return (
             <div
               key={c.id}
-              className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-5 space-y-4 shadow-xs hover:border-[#cbbea7] transition"
+              className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-5 space-y-4 shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f] hover:-translate-y-0.5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">

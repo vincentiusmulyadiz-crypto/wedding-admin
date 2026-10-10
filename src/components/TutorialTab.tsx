@@ -10,6 +10,7 @@ import {
   MessageCircle,
   ArrowRight,
   HeartHandshake,
+  BookOpen,
 } from 'lucide-react';
 
 interface TutorialTabProps {
@@ -20,9 +21,9 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header Sambutan */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-2 text-center sm:text-left">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-2 text-center sm:text-left transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f0ebd9] border border-[#ded4be] text-xs font-bold text-[#0f3b47]">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+          <BookOpen className="w-3.5 h-3.5 text-teal-800" />
           <span>Panduan Praktis untuk Calon Pengantin</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#0e2c34]">
@@ -34,7 +35,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
       </div>
 
       {/* Bagian 1: Alur Utama Mengundang Tamu (Tab Tautan Tamu) */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-5 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex items-center justify-between border-b border-[#eee5d4] pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -64,7 +65,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
           {/* Langkah 1 */}
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-2">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
             <div className="w-7 h-7 rounded-xl bg-[#0f3b47] text-white flex items-center justify-center font-bold text-xs">
               1
             </div>
@@ -75,7 +76,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
           </div>
 
           {/* Langkah 2 */}
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-2">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
             <div className="w-7 h-7 rounded-xl bg-[#0f3b47] text-white flex items-center justify-center font-bold text-xs">
               2
             </div>
@@ -86,7 +87,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
           </div>
 
           {/* Langkah 3 */}
-          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-emerald-300">
             <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
               3
             </div>
@@ -99,7 +100,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
       </div>
 
       {/* Bagian 2: Memantau Kehadiran & Doa Restu (Tab Ringkasan) */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-5 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex items-center justify-between border-b border-[#eee5d4] pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-teal-50 text-teal-800 border border-teal-200">
@@ -128,7 +129,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
             <div className="flex items-center gap-2 text-teal-800 font-bold text-xs">
               <Users className="w-4 h-4 text-teal-700" />
               <span>Angka Tamu Hadir</span>
@@ -138,7 +139,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
             <div className="flex items-center gap-2 text-[#0e2c34] font-bold text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Grafik Warna Kehadiran</span>
@@ -148,7 +149,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5 sm:col-span-2 lg:col-span-1">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5 sm:col-span-2 lg:col-span-1 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
             <div className="flex items-center gap-2 text-[#0e2c34] font-bold text-xs">
               <Sparkles className="w-4 h-4 text-amber-600" />
               <span>Ucapan Terbaru</span>
@@ -161,7 +162,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
       </div>
 
       {/* Bagian 3: Mencari & Mengelola Tamu (Tab Daftar Tamu) */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-6 sm:p-8 shadow-xs space-y-5 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex items-center justify-between border-b border-[#eee5d4] pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-[#f0ebd9] text-[#0f3b47] border border-[#ded4be]">
@@ -190,7 +191,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
         </div>
 
         <div className="space-y-3 pt-1">
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3 transition-all duration-200 hover:shadow-sm hover:border-[#cdbe9f]">
             <Search className="w-5 h-5 text-[#0f3b47] shrink-0 mt-0.5" />
             <div>
               <h3 className="font-bold text-xs text-[#0e2c34]">Cari & Filter Cepat</h3>
@@ -200,7 +201,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3 transition-all duration-200 hover:shadow-sm hover:border-[#cdbe9f]">
             <HeartHandshake className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
             <div>
               <h3 className="font-bold text-xs text-[#0e2c34]">Klik Baris Tamu untuk Baca Pesan Lengkap</h3>
@@ -210,7 +211,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3">
+          <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3 transition-all duration-200 hover:shadow-sm hover:border-[#cdbe9f]">
             <Download className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
             <div>
               <h3 className="font-bold text-xs text-[#0e2c34]">Simpan ke Excel / Ekspor CSV</h3>
@@ -223,7 +224,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
       </div>
 
       {/* Bagian 4: Tips Praktis untuk Pengantin */}
-      <div className="bg-gradient-to-br from-[#f0ebd9] to-[#e8dfc9] border border-[#ded4be] rounded-3xl p-6 sm:p-8 space-y-4 shadow-xs">
+      <div className="bg-gradient-to-br from-[#f0ebd9] to-[#e8dfc9] border border-[#ded4be] rounded-3xl p-6 sm:p-8 space-y-4 shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex items-center gap-2">
           <HelpCircle className="w-5 h-5 text-[#0f3b47]" />
           <h2 className="text-base font-bold text-[#0e2c34]">

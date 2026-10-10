@@ -32,6 +32,69 @@ interface GuestsTabProps {
 
 const PAGE_SIZE = 25;
 
+const matchEvent = (r: Rsvp, filter: string): boolean => {
+  if (filter === 'all') return true;
+  const { eventDetail } = getDetailedAttendanceInfo(r.attendance, r.message);
+  const detail = (eventDetail || '').toLowerCase();
+  const att = (r.attendance || '').toLowerCase();
+  const msg = (r.message || '').toLowerCase();
+
+  if (filter === 'hadir_adat') {
+    return (
+      att === 'hadir_adat' ||
+      detail.includes('adat') ||
+      msg.includes('[hadir: adat]') ||
+      (msg.includes('adat') && !msg.includes('resepsi') && !msg.includes('pemberkatan'))
+    );
+  }
+  if (filter === 'hadir_resepsi') {
+    return (
+      att === 'hadir_resepsi' ||
+      detail.includes('resepsi') ||
+      detail.includes('reservation') ||
+      msg.includes('[hadir: resepsi]') ||
+      msg.includes('[hadir: reservation]')
+    );
+  }
+  if (filter === 'hadir_pemberkatan') {
+    return (
+      att === 'hadir_pemberkatan' ||
+      detail.includes('pemberkatan') ||
+      detail.includes('akad') ||
+      msg.includes('[hadir: pemberkatan]') ||
+      msg.includes('[hadir: akad]')
+    );
+  }
+  if (filter === 'hadir_keduanya') {
+    return (
+      att === 'hadir_keduanya' ||
+      detail.includes('keduanya') ||
+      msg.includes('keduanya')
+    );
+  }
+  if (filter === 'hadir_semua') {
+    return (
+      att === 'hadir_semua' ||
+      detail.includes('semua') ||
+      detail.includes('all') ||
+      msg.includes('attend all') ||
+      msg.includes('semua acara')
+    );
+  }
+  return att === filter;
+};
+
+const getEventFilterLabel = (val: string): string => {
+  switch (val) {
+    case 'hadir_adat': return 'Adat Saja';
+    case 'hadir_resepsi': return 'Resepsi Saja';
+    case 'hadir_pemberkatan': return 'Pemberkatan Saja';
+    case 'hadir_keduanya': return 'Pemberkatan & Resepsi';
+    case 'hadir_semua': return 'Semua Acara';
+    default: return val;
+  }
+};
+
 export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -70,17 +133,30 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .select('*', { count: 'exact' })
         .eq('customer_id', customer.id);
 
-      // Primary status filter
-      if (primaryStatusFilter === 'hadir') {
-        if (eventFilter !== 'all') {
-          query = query.eq('attendance', eventFilter);
+      // Prioritas 1: Jika filter acara spesifik dipilih (misal: hadir adat saja)
+      if (eventFilter !== 'all') {
+        if (eventFilter === 'hadir_adat') {
+          query = query.or('attendance.eq.hadir_adat,message.ilike.%[Hadir:%Adat%]%');
+        } else if (eventFilter === 'hadir_resepsi') {
+          query = query.or('attendance.eq.hadir_resepsi,message.ilike.%[Hadir:%Resepsi%]%,message.ilike.%[Hadir:%Reservation%]%');
+        } else if (eventFilter === 'hadir_pemberkatan') {
+          query = query.or('attendance.eq.hadir_pemberkatan,message.ilike.%[Hadir:%Pemberkatan%]%,message.ilike.%[Hadir:%Akad%]%');
+        } else if (eventFilter === 'hadir_keduanya') {
+          query = query.eq('attendance', 'hadir_keduanya');
+        } else if (eventFilter === 'hadir_semua') {
+          query = query.or('attendance.eq.hadir_semua,message.ilike.%[Hadir:%Attend All%]%,message.ilike.%[Hadir:%Semua Acara%]%');
         } else {
-          query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
+          query = query.eq('attendance', eventFilter);
         }
-      } else if (primaryStatusFilter === 'tidak_hadir') {
-        query = query.eq('attendance', 'tidak_hadir');
-      } else if (primaryStatusFilter === 'belum_pasti') {
-        query = query.eq('attendance', 'belum_pasti');
+      } else {
+        // Filter status umum jika semua jenis acara
+        if (primaryStatusFilter === 'hadir') {
+          query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
+        } else if (primaryStatusFilter === 'tidak_hadir') {
+          query = query.eq('attendance', 'tidak_hadir');
+        } else if (primaryStatusFilter === 'belum_pasti') {
+          query = query.eq('attendance', 'belum_pasti');
+        }
       }
 
       if (searchQuery.trim()) {
@@ -96,12 +172,10 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       // Fallback for Romeo & Juliet demo data
       if ((error || !data || data.length === 0) && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
         let list = [...DEMO_ROMEO_JULIET_RSVPS];
-        if (primaryStatusFilter === 'hadir') {
-          if (eventFilter !== 'all') {
-            list = list.filter((r) => r.attendance === eventFilter);
-          } else {
-            list = list.filter((r) => r.attendance.startsWith('hadir'));
-          }
+        if (eventFilter !== 'all') {
+          list = list.filter((r) => matchEvent(r, eventFilter));
+        } else if (primaryStatusFilter === 'hadir') {
+          list = list.filter((r) => r.attendance.startsWith('hadir'));
         } else if (primaryStatusFilter === 'tidak_hadir') {
           list = list.filter((r) => r.attendance === 'tidak_hadir');
         } else if (primaryStatusFilter === 'belum_pasti') {
@@ -124,8 +198,12 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         return;
       }
 
-      setRsvps((data as Rsvp[]) || []);
-      setTotalCount(count || 0);
+      let resultRows = (data as Rsvp[]) || [];
+      if (eventFilter !== 'all') {
+        resultRows = resultRows.filter((r) => matchEvent(r, eventFilter));
+      }
+      setRsvps(resultRows);
+      setTotalCount(count ?? resultRows.length);
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -186,7 +264,21 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .eq('customer_id', customer.id)
         .order('created_at', { ascending: false });
 
-      if (primaryStatusFilter === 'hadir') {
+      if (eventFilter !== 'all') {
+        if (eventFilter === 'hadir_adat') {
+          query = query.or('attendance.eq.hadir_adat,message.ilike.%[Hadir:%Adat%]%');
+        } else if (eventFilter === 'hadir_resepsi') {
+          query = query.or('attendance.eq.hadir_resepsi,message.ilike.%[Hadir:%Resepsi%]%,message.ilike.%[Hadir:%Reservation%]%');
+        } else if (eventFilter === 'hadir_pemberkatan') {
+          query = query.or('attendance.eq.hadir_pemberkatan,message.ilike.%[Hadir:%Pemberkatan%]%,message.ilike.%[Hadir:%Akad%]%');
+        } else if (eventFilter === 'hadir_keduanya') {
+          query = query.eq('attendance', 'hadir_keduanya');
+        } else if (eventFilter === 'hadir_semua') {
+          query = query.or('attendance.eq.hadir_semua,message.ilike.%[Hadir:%Attend All%]%,message.ilike.%[Hadir:%Semua Acara%]%');
+        } else {
+          query = query.eq('attendance', eventFilter);
+        }
+      } else if (primaryStatusFilter === 'hadir') {
         query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
       } else if (primaryStatusFilter === 'tidak_hadir') {
         query = query.eq('attendance', 'tidak_hadir');
@@ -200,7 +292,12 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         return;
       }
 
-      const rowsData = ((data as Rsvp[]) || []).map((item) => {
+      let exportItems = ((data as Rsvp[]) || []);
+      if (eventFilter !== 'all') {
+        exportItems = exportItems.filter((r) => matchEvent(r, eventFilter));
+      }
+
+      const rowsData = exportItems.map((item) => {
         const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
         const statusLabel = eventDetail ? `${badge.label} (${eventDetail})` : badge.label;
         return [
@@ -369,8 +466,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         </div>
       )}
 
-      {/* 2. Tampilan Awal: Hanya Kolom Pencarian dan Satu Filter Status di Atas */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-3 sm:p-4 shadow-xs space-y-3">
+      {/* 2. Tampilan Awal: Kolom Pencarian, Filter Status & Filter Acara Spesifik */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-3 sm:p-4 shadow-xs space-y-3 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Kolom Pencarian */}
           <form onSubmit={handleSearchSubmit} className="relative flex-1">
@@ -393,10 +490,11 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('all');
+                setEventFilter('all');
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition ${
-                primaryStatusFilter === 'all'
+                primaryStatusFilter === 'all' && eventFilter === 'all'
                   ? 'bg-[#0f3b47] text-white shadow-xs'
                   : 'text-[#52717b] hover:text-[#0e2c34]'
               }`}
@@ -410,7 +508,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
-                primaryStatusFilter === 'hadir'
+                primaryStatusFilter === 'hadir' || eventFilter !== 'all'
                   ? 'bg-teal-700 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-teal-800'
               }`}
@@ -422,6 +520,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('tidak_hadir');
+                setEventFilter('all');
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
@@ -437,6 +536,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               type="button"
               onClick={() => {
                 setPrimaryStatusFilter('belum_pasti');
+                setEventFilter('all');
                 setPage(1);
               }}
               className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
@@ -450,13 +550,34 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
             </button>
           </div>
         </div>
+
+        {/* Badge Indikator Filter Acara Spesifik Aktif */}
+        {eventFilter !== 'all' && (
+          <div className="flex items-center gap-2 pt-2 border-t border-[#eee5d4] flex-wrap">
+            <span className="text-[11px] text-[#52717b] font-medium">Filter acara spesifik aktif:</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-50 border border-teal-300 text-teal-900 text-xs font-bold">
+              <span>Hanya {getEventFilterLabel(eventFilter)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEventFilter('all');
+                  setPage(1);
+                }}
+                className="hover:bg-teal-100 rounded-full p-0.5 text-teal-800 transition"
+                title="Hapus filter acara spesifik"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 3. Daftar Ringkas (Tabel / Card) */}
       {loading ? (
         <TableSkeleton rows={8} />
       ) : rsvps.length === 0 ? (
-        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-12 text-center space-y-3 shadow-xs">
+        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-12 text-center space-y-3 shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
           <div className="w-12 h-12 rounded-full bg-[#f0ebd9] border border-[#ded4be] flex items-center justify-center mx-auto text-[#0f3b47]">
             <Users className="w-6 h-6" />
           </div>
@@ -488,7 +609,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           </p>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block bg-[#fffdfa] border border-[#e5dcce] rounded-2xl overflow-hidden shadow-xs">
+          <div className="hidden md:block bg-[#fffdfa] border border-[#e5dcce] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#f5eedf] text-[#345761] font-bold border-b border-[#e5dcce]">
                 <tr>
@@ -566,7 +687,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 <div
                   key={item.id}
                   onClick={() => setSelectedGuest(item)}
-                  className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 space-y-2.5 shadow-xs hover:border-[#cbbea7] active:scale-[0.99] cursor-pointer transition"
+                  className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 space-y-2.5 shadow-xs transition-all duration-200 hover:border-[#cdbe9f] hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">

@@ -60,23 +60,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* 1. Header Sticky Atas (Desktop & Mobile Top Bar) */}
-      <header className="sticky top-0 z-40 bg-[#faf6ee]/95 backdrop-blur-md border-b border-[#e5dcce] shadow-xs">
+      {/* 1. Header Sticky Atas (Desktop & Mobile Top Bar) - Gaya Persis joyever.id */}
+      <header className="sticky top-0 z-40 bg-[#0E435A] border-b border-[#154B64] text-[#FAF6EC] shadow-md transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Brand & Customer Switcher */}
             <div className="flex items-center gap-3 sm:gap-4">
               <div className="flex items-center gap-2.5">
                 <img
-                  src={logo}
-                  alt="joyever"
-                  className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl object-cover border border-[#ded4be] shadow-xs shrink-0"
+                  src="/logo-joyever-clean.png"
+                  alt="Joyever Logo"
+                  className="h-8 sm:h-9 w-auto object-contain transition-transform duration-200 hover:scale-105 shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = logo;
+                  }}
                 />
-                <div>
-                  <span className="font-bold text-base sm:text-lg tracking-tight text-[#0e2c34] block leading-none">
-                    joyever
+                <div className="flex items-center">
+                  <span className="font-bold text-base sm:text-lg tracking-tight text-[#FAF6EC]">
+                    Joy<span className="text-[#DFD0B8]">ever</span>
                   </span>
-                  <span className="text-[9px] sm:text-[10px] text-[#52717b] tracking-wider uppercase block mt-0.5">
+                  <span className="hidden sm:inline-block text-[10px] uppercase tracking-[0.2em] text-[#DFD0B8] border-l border-[#1C5375] pl-3 ml-2.5">
                     Panel Undangan
                   </span>
                 </div>
@@ -91,8 +94,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     disabled={customers.length <= 1}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition ${
                       customers.length > 1
-                        ? 'bg-[#f0ebd9] hover:bg-[#e8e1cd] border-[#ded4be] text-[#0e2c34] cursor-pointer shadow-xs'
-                        : 'bg-[#f5eedf] border-[#ded4be] text-[#345863] cursor-default'
+                        ? 'bg-[#144d66] hover:bg-[#1a5b78] border-[#1d6382] text-[#FAF6EC] cursor-pointer shadow-xs'
+                        : 'bg-[#10475f] border-[#16516d] text-[#c2dbe4] cursor-default'
                     }`}
                     aria-expanded={switcherOpen}
                   >
@@ -101,7 +104,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </span>
                     {customers.length > 1 && (
                       <ChevronDown
-                        className={`w-3.5 h-3.5 text-[#52717b] transition-transform ${
+                        className={`w-3.5 h-3.5 text-[#DFD0B8] transition-transform ${
                           switcherOpen ? 'rotate-180' : ''
                         }`}
                       />
@@ -149,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Desktop Tab Navigation (Sidebar / Tab Atas di Desktop) */}
-            <nav className="hidden md:flex items-center gap-1.5 bg-[#ede5d3] p-1 rounded-xl border border-[#ded3bd]">
+            <nav className="hidden md:flex items-center gap-1.5 bg-[#093548] p-1 rounded-xl border border-[#164a63]">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
@@ -158,8 +161,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => onSelectTab(tab.id)}
                     className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                       isActive
-                        ? 'bg-[#0f3b47] text-white shadow-xs'
-                        : 'text-[#355863] hover:text-[#0e2c34] hover:bg-[#e3d9c4]'
+                        ? 'bg-[#DFD0B8] text-[#0E435A] font-bold shadow-xs'
+                        : 'text-[#a1cbda] hover:text-[#FAF6EC] hover:bg-[#11475e]'
                     }`}
                   >
                     {tab.icon}
@@ -175,14 +178,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={onOpenConfig}
                 title="Pengaturan Database Supabase"
-                className="p-2 rounded-xl text-[#52717b] hover:text-[#0e2c34] hover:bg-[#eee6d5] border border-transparent hover:border-[#ded3bd] transition"
+                className="p-2 rounded-xl text-[#DFD0B8] hover:text-white hover:bg-[#16516b] border border-transparent hover:border-[#206383] transition"
               >
                 <Settings className="w-4 h-4" />
               </button>
 
               {userEmail && (
                 <span
-                  className="hidden lg:inline-block text-xs text-[#52717b] font-mono max-w-[140px] truncate"
+                  className="hidden lg:inline-block text-xs text-[#DFD0B8]/80 font-mono max-w-[140px] truncate"
                   title={userEmail}
                 >
                   {userEmail}
@@ -192,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={onLogout}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-200 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 transition"
                 title="Keluar dari akun"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -204,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       {/* 2. Mobile Bottom Navigation Bar (Tab Bawah di Mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#faf6ee]/95 backdrop-blur-md border-t border-[#ded4be] shadow-lg flex items-center justify-around py-1.5 px-2 safe-area-pb">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0E435A]/95 backdrop-blur-md border-t border-[#154B64] shadow-lg flex items-center justify-around py-1.5 px-2 safe-area-pb text-[#FAF6EC]">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -213,8 +216,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectTab(tab.id)}
               className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition ${
                 isActive
-                  ? 'text-[#0f3b47] font-bold bg-[#f0ebd9]'
-                  : 'text-[#52717b] hover:text-[#0e2c34]'
+                  ? 'text-[#DFD0B8] font-bold bg-[#16516b]'
+                  : 'text-[#9cc4d3] hover:text-[#FAF6EC]'
               }`}
             >
               <div className="p-0.5">{tab.icon}</div>

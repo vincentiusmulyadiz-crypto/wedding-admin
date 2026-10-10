@@ -588,7 +588,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       {/* Visual Alur 3 Langkah (Friendly Process Indicator) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Langkah 1 */}
-        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 shadow-xs flex items-start gap-3">
+        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 shadow-xs flex items-start gap-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
           <div className="w-8 h-8 rounded-full bg-[#0f3b47] text-white flex items-center justify-center font-bold text-sm shrink-0">
             1
           </div>
@@ -601,7 +601,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         </div>
 
         {/* Langkah 2 */}
-        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 shadow-xs flex items-start gap-3">
+        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 shadow-xs flex items-start gap-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
           <div className="w-8 h-8 rounded-full bg-[#0f3b47] text-white flex items-center justify-center font-bold text-sm shrink-0">
             2
           </div>
@@ -614,7 +614,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         </div>
 
         {/* Langkah 3 */}
-        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 shadow-xs flex items-start gap-3">
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 shadow-xs flex items-start gap-3 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-emerald-300">
           <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
             3
           </div>
@@ -628,7 +628,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       </div>
 
       {/* LANGKAH 1: Tempel / Input Nama Tamu */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#eee5d4] pb-3">
           <div>
             <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
@@ -700,7 +700,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       </div>
 
       {/* LANGKAH 2: Cek & Atur Tautan Undangan */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#eee5d4] pb-3">
           <div>
             <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
@@ -777,7 +777,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       </div>
 
       {/* LANGKAH 3: Daftar Tamu & Kirim via WhatsApp */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#eee5d4] pb-3">
           <div>
@@ -865,7 +865,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
               return (
                 <div
                   key={guest.id}
-                  className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] hover:border-[#cbbea7] transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] transition-all duration-200 hover:shadow-sm hover:border-[#cdbe9f] hover:bg-[#f6f0e2] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   {/* Info Tamu & Tautan */}
                   <div className="space-y-1.5 flex-1 min-w-0">

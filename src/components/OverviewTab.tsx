@@ -212,7 +212,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
   return (
     <div className="space-y-6">
       {/* 1. Header dengan Hitung Mundur Satu Baris */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-7 shadow-xs space-y-4">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-7 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#0e2c34]">
@@ -273,7 +273,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
       ) : (
         <div className="space-y-4">
           {/* Satu Angka Besar Sebagai Fokus: "X tamu akan hadir" */}
-          <div className="bg-gradient-to-br from-[#0f3b47] via-[#144d5c] to-[#0e2c34] text-white rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
+          <div className="bg-gradient-to-br from-[#0f3b47] via-[#144d5c] to-[#0e2c34] text-white rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
             <div className="relative z-10 space-y-2">
               <span className="text-xs uppercase tracking-wider font-bold text-[#b5e0eb] block">
                 Total Perkiraan Kehadiran Fisik
@@ -297,7 +297,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
           {/* Hanya 3 Kartu Pendukung: Akan Hadir, Tidak Hadir, Belum Balas */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {/* 1. Akan Hadir */}
-            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2">
+            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
               <div className="flex items-center justify-between text-teal-800">
                 <span className="text-xs font-bold uppercase tracking-wider">Akan Hadir</span>
                 <CheckCircle2 className="w-5 h-5 text-teal-600" />
@@ -314,7 +314,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
             </div>
 
             {/* 2. Tidak Hadir */}
-            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2">
+            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
               <div className="flex items-center justify-between text-rose-800">
                 <span className="text-xs font-bold uppercase tracking-wider">Tidak Hadir</span>
                 <XCircle className="w-5 h-5 text-rose-600" />
@@ -331,7 +331,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
             </div>
 
             {/* 3. Belum Balas / Ragu */}
-            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2">
+            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
               <div className="flex items-center justify-between text-amber-800">
                 <span className="text-xs font-bold uppercase tracking-wider">Belum Balas / Ragu</span>
                 <HelpCircle className="w-5 h-5 text-amber-600" />
@@ -360,7 +360,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
       )}
 
       {/* 3. Progress Bar Bersegmen (Pengganti Donut Chart) */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[#eee5d4] pb-3">
           <div>
             <h2 className="text-base font-bold text-[#0e2c34]">
@@ -408,7 +408,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
 
             {/* Clear Legend with Numbers and Percentages */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-teal-50/70 border border-teal-200">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-teal-50/70 border border-teal-200 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-teal-600 shrink-0" />
                   <span className="font-semibold text-teal-950">Akan Hadir</span>
@@ -421,7 +421,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/70 border border-amber-200">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/70 border border-amber-200 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
                   <span className="font-semibold text-amber-950">Belum Pasti</span>
@@ -434,7 +434,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/70 border border-rose-200">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/70 border border-rose-200 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
                   <span className="font-semibold text-rose-950">Tidak Hadir</span>
@@ -483,7 +483,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
       </div>
 
       {/* 4. Tampilkan 3 Ucapan Terbaru + Tombol "Lihat semua" */}
-      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
         <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-[#0f3b47]" />
@@ -518,7 +518,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
               return (
                 <div
                   key={item.id}
-                  className="p-4 rounded-2xl bg-[#faf6ee] border border-[#e5dcce] space-y-2 hover:border-[#cbbea7] transition"
+                  className="p-4 rounded-2xl bg-[#faf6ee] border border-[#e5dcce] space-y-2 transition-all duration-200 hover:shadow-sm hover:border-[#cdbe9f] hover:bg-[#f6f0e2]"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 truncate">
