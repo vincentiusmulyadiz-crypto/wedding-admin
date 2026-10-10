@@ -3,6 +3,7 @@ import type { Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
 import { encodeGuestCode } from '../lib/guestCode';
 import { normalizePhoneNumber, formatPhoneNumber } from '../lib/format';
+import { showToast } from '../lib/toast';
 import {
   Copy,
   Check,
@@ -13,11 +14,13 @@ import {
   Edit3,
   Trash2,
   RotateCw,
-  ClipboardList,
-  Key,
   Search,
   Upload,
   X,
+  Send,
+  FileText,
+  Sliders,
+  CheckCircle2,
 } from 'lucide-react';
 
 export interface InvitedGuest {
@@ -46,18 +49,13 @@ export const isSampleGuestList = (list: InvitedGuest[]): boolean => {
   return list[0]?.name === 'Budi Santoso' && list[1]?.name === 'Siti Aminah & Keluarga';
 };
 
-// Format arahan preview URL untuk masing-masing customer (hanya placeholder)
+// Format arahan preview URL untuk masing-masing customer
 export const getBaseUrlPreviewFormat = (cust: Customer): string => {
-  if (cust.slug === 'alfredo-yana') {
-    return 'https://alfredo-yana.vercel.app';
-  }
-  if (typeof window !== 'undefined' && window.location.origin) {
-    return `${window.location.origin}/${cust.slug || 'nama-pasangan'}`;
-  }
-  return `https://undangan.com/${cust.slug || 'nama-pasangan'}`;
+  const coupleSlug = cust.slug || 'namapasangan';
+  return `https://${coupleSlug}.joyever.id`;
 };
 
-// Muat Base URL yang tersimpan khusus untuk akun ini. Jika baru buka, KOSONG ('')
+// Muat Base URL yang tersimpan khusus untuk akun ini
 export const loadStoredBaseUrl = (cust: Customer): string => {
   try {
     const fromId = localStorage.getItem(`base_url_${cust.id}`);
@@ -73,7 +71,6 @@ export const loadStoredBaseUrl = (cust: Customer): string => {
   } catch (e) {
     console.error('Error loading base url:', e);
   }
-  // Saat baru buka: kotak teks kosong (hanya preview teks format untuk arahan)
   return '';
 };
 
@@ -144,7 +141,6 @@ export const loadStoredGuests = (cust: Customer): InvitedGuest[] => {
     ];
   }
 
-  // Akun nyata (seperti alfredo-yana / akun klien) default kosong agar data impor tersimpan bersih
   return [];
 };
 
@@ -176,7 +172,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   // Initial guest list loader tersimpan per akun
   const [guests, setGuests] = useState<InvitedGuest[]>(() => loadStoredGuests(customer));
 
-  // Base URL text box: kosong saat baru buka, menyimpan teks jika diketik
+  // Base URL text box
   const [baseUrl, setBaseUrl] = useState<string>(() => loadStoredBaseUrl(customer));
 
   const [linkFormat, setLinkFormat] = useState<'random' | 'named'>(() => {
@@ -191,9 +187,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [editingGuest, setEditingGuest] = useState<InvitedGuest | null>(null);
 
-  // Form Fields for Add / Edit
+  // Quick Inline Add in Step 1
+  const [quickName, setQuickName] = useState<string>('');
+  const [quickPhone, setQuickPhone] = useState<string>('');
+
+  // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -209,9 +210,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   // RSVP Status Check
   const [existingRsvps, setExistingRsvps] = useState<Rsvp[]>([]);
   const [loadingRsvps, setLoadingRsvps] = useState<boolean>(false);
-
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [copiedAll, setCopiedAll] = useState<boolean>(false);
 
   // Sinkronisasi ulang data saat customer berubah
   useEffect(() => {
@@ -267,7 +266,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
 
   // Enriched Guests with generated links, codes, and RSVP status
   const enrichedGuests = useMemo(() => {
-    // Load saved codes
     let savedCodes: Record<string, string> = {};
     try {
       savedCodes = JSON.parse(localStorage.getItem(codesStorageKey) || '{}');
@@ -295,7 +293,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       if (r.guest_param) rsvpLookup.add(r.guest_param.trim().toLowerCase());
     });
 
-    const cleanBase = baseUrl.trim().replace(/\/+$/, '');
+    let cleanBase = baseUrl.trim().replace(/\/+$/, '');
+    if (cleanBase && !cleanBase.startsWith('http://') && !cleanBase.startsWith('https://')) {
+      cleanBase = `https://${cleanBase}`;
+    }
     const effectiveBase = cleanBase || previewBaseUrl.replace(/\/+$/, '');
 
     return guests.map((guest) => {
@@ -346,12 +347,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   const rsvpedCount = useMemo(() => {
     return enrichedGuests.filter((g) => g.isRsvped).length;
   }, [enrichedGuests]);
-  const percentage = totalGuests > 0 ? ((rsvpedCount / totalGuests) * 100).toFixed(1) : '0';
 
   // Clipboard Helpers
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
+    showToast('Tautan undangan berhasil disalin!', 'success');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -364,8 +365,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       })
       .join('\n\n');
     navigator.clipboard.writeText(formatted);
-    setCopiedAll(true);
-    setTimeout(() => setCopiedAll(false), 2500);
+    showToast(`Berhasil menyalin ${enrichedGuests.length} tautan tamu ke clipboard!`, 'success');
   };
 
   // WhatsApp Direct Link Generator
@@ -379,11 +379,30 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
     if (clean) {
       return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
     }
-    // Fallback if no phone number: open WhatsApp with recipient picker
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
-  // Add / Edit Handlers
+  // Quick Add Handler from Step 1
+  const handleQuickAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = quickName.trim();
+    if (!trimmed) return;
+
+    const newGuest: InvitedGuest = {
+      id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      name: trimmed,
+      phone: quickPhone.trim(),
+    };
+
+    const nextList = [newGuest, ...guests];
+    setGuests(nextList);
+    saveGuestsForCustomer(customer, nextList);
+    setQuickName('');
+    setQuickPhone('');
+    showToast(`Tamu "${trimmed}" berhasil ditambahkan!`, 'success');
+  };
+
+  // Add / Edit Handlers for modal
   const handleOpenAddModal = () => {
     setInputName('');
     setInputPhone('');
@@ -415,6 +434,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
           ? { ...g, name: trimmedName, phone: inputPhone.trim() }
           : g
       );
+      showToast(`Data "${trimmedName}" berhasil diperbarui`, 'success');
     } else {
       const newGuest: InvitedGuest = {
         id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -422,6 +442,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         phone: inputPhone.trim(),
       };
       nextList = [newGuest, ...guests];
+      showToast(`Tamu "${trimmedName}" berhasil ditambahkan`, 'success');
     }
 
     setGuests(nextList);
@@ -434,6 +455,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       const nextList = guests.filter((g) => g.id !== id);
       setGuests(nextList);
       saveGuestsForCustomer(customer, nextList);
+      showToast(`Tamu "${name}" telah dihapus`, 'info');
     }
   };
 
@@ -448,6 +470,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
     ) {
       setGuests([]);
       saveGuestsForCustomer(customer, []);
+      showToast('Seluruh daftar tamu telah dikosongkan', 'info');
     }
   };
 
@@ -488,7 +511,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         phone = parts.slice(1).join(';').trim();
       }
 
-      // Bersihkan awalan angka / bullet jika user copy-paste dari list bernomor
       name = name.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim();
 
       return {
@@ -505,28 +527,30 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
     saveGuestsForCustomer(customer, nextList);
     setBatchText('');
     setShowBatchModal(false);
+    showToast(`Berhasil menambahkan ${imported.length} tamu!`, 'success');
   };
 
   return (
     <div className="space-y-6">
-      {/* Header and Quick Stats */}
+      {/* Header & Aksi Sekunder */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#0f3b47] flex items-center gap-2">
-            <Users className="w-6 h-6 text-[#0f3b47]" />
-            <span>Kelola Tamu & Kirim WhatsApp</span>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0e2c34] flex items-center gap-2">
+            <MessageCircle className="w-6 h-6 text-emerald-600" />
+            <span>Kirim Undangan via WhatsApp</span>
           </h1>
-          <p className="text-xs text-[#5e7d87]">
-            Daftar tamu dan nomor WhatsApp tersimpan khusus pada akun undangan <span className="text-[#0f3b47] font-bold">{customer.couple_names || customer.slug}</span>
+          <p className="text-xs text-[#52717b] mt-0.5">
+            Alur praktis 3 langkah untuk mengundang tamu secara personal
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Aksi Sekunder: Template Pesan, Salin Semua, Pengaturan Tautan */}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <button
             type="button"
             onClick={fetchExistingRsvps}
-            className="p-2 rounded-xl bg-[#fffdf9] border border-[#d8cdb8] text-[#345863] hover:text-[#0f3b47] hover:bg-[#f3eedf] transition shadow-xs"
-            title="Segarkan data status RSVP"
+            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs"
+            title="Segarkan status konfirmasi tamu"
           >
             <RotateCw className={`w-4 h-4 ${loadingRsvps ? 'animate-spin' : ''}`} />
           </button>
@@ -534,96 +558,201 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
           <button
             type="button"
             onClick={() => setShowTemplateModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7e0cc] border border-[#d8cdb8] transition shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e7e0cc] border border-[#ded4be] transition shadow-xs"
           >
-            <Edit3 className="w-3.5 h-3.5 text-[#0f3b47]" />
-            <span>Template WA</span>
+            <FileText className="w-3.5 h-3.5 text-[#0f3b47]" />
+            <span>Template Pesan</span>
           </button>
 
           <button
             type="button"
-            onClick={handleOpenBatchModal}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7e0cc] border border-[#d8cdb8] transition shadow-xs"
+            onClick={handleCopyAllLinks}
+            disabled={guests.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e7e0cc] border border-[#ded4be] disabled:opacity-40 transition shadow-xs"
           >
-            <Upload className="w-3.5 h-3.5 text-[#0f3b47]" />
-            <span>Import Massal</span>
+            <Copy className="w-3.5 h-3.5 text-[#0f3b47]" />
+            <span>Salin Semua Tautan</span>
           </button>
 
-          {guests.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowSettingsModal(true)}
+            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs"
+            title="Pengaturan Format & Base URL"
+          >
+            <Sliders className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Visual Alur 3 Langkah (Friendly Process Indicator) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Langkah 1 */}
+        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 shadow-xs flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#0f3b47] text-white flex items-center justify-center font-bold text-sm shrink-0">
+            1
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-[#0e2c34] block">1. Tempel Nama Tamu</span>
+            <p className="text-[11px] text-[#52717b] leading-relaxed">
+              Ketik nama dan nomor HP, atau tempel daftar massal dari WhatsApp / Excel.
+            </p>
+          </div>
+        </div>
+
+        {/* Langkah 2 */}
+        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 shadow-xs flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#0f3b47] text-white flex items-center justify-center font-bold text-sm shrink-0">
+            2
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-[#0e2c34] block">2. Cek Tautan Personal</span>
+            <p className="text-[11px] text-[#52717b] leading-relaxed">
+              Tautan unik dengan nama tamu dibuat otomatis secara rapi.
+            </p>
+          </div>
+        </div>
+
+        {/* Langkah 3 */}
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 shadow-xs flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+            3
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-emerald-950 block">3. Kirim via WhatsApp</span>
+            <p className="text-[11px] text-emerald-800 leading-relaxed">
+              Klik tombol hijau WhatsApp untuk membuka chat dengan template pesan terisi!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* LANGKAH 1: Tempel / Input Nama Tamu */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#eee5d4] pb-3">
+          <div>
+            <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#0f3b47] text-white text-xs flex items-center justify-center font-bold">1</span>
+              <span>Tempel & Tambah Nama Tamu</span>
+            </h2>
+            <p className="text-xs text-[#52717b]">
+              Masukkan tamu satu per satu atau gunakan fitur import massal
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleClearAllGuests}
-              className="p-2 rounded-xl bg-[#fffdf9] border border-rose-200 text-rose-700 hover:text-rose-950 hover:bg-rose-50 transition shadow-xs"
-              title="Kosongkan seluruh daftar tamu akun ini"
+              onClick={handleOpenAddModal}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
             >
-              <Trash2 className="w-4 h-4" />
+              <UserPlus className="w-3.5 h-3.5 text-[#0f3b47]" />
+              <span>+ Form Lengkap</span>
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] transition shadow-xs"
-          >
-            <UserPlus className="w-4 h-4 text-emerald-300" />
-            <span>+ Tambah Tamu</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleOpenBatchModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
+            >
+              <Upload className="w-3.5 h-3.5 text-[#0f3b47]" />
+              <span>Tempel Banyak Sekaligus</span>
+            </button>
+          </div>
         </div>
+
+        {/* Quick inline add form */}
+        <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1">
+          <div className="sm:col-span-5">
+            <input
+              type="text"
+              placeholder="Ketik Nama Tamu (contoh: Budi & Keluarga)"
+              value={quickName}
+              onChange={(e) => setQuickName(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+            />
+          </div>
+
+          <div className="sm:col-span-4">
+            <div className="relative">
+              <Phone className="w-3.5 h-3.5 text-[#819ea7] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="tel"
+                placeholder="Nomor WA (contoh: 08123456789)"
+                value={quickPhone}
+                onChange={(e) => setQuickPhone(e.target.value)}
+                className="w-full pl-8 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              />
+            </div>
+          </div>
+
+          <div className="sm:col-span-3">
+            <button
+              type="submit"
+              disabled={!quickName.trim()}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Tambah Tamu</span>
+            </button>
+          </div>
+        </form>
       </div>
 
-      {/* Progress & Counter Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total Tamu */}
-        <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-[#f0ebd9] border border-[#d8cdb8] text-[#0f3b47]">
-            <Users className="w-5 h-5" />
-          </div>
+      {/* LANGKAH 2: Cek & Atur Tautan Undangan */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#eee5d4] pb-3">
           <div>
-            <span className="text-[11px] text-[#5e7d87] block font-medium">Total Tamu Diundang:</span>
-            <span className="text-lg font-bold text-[#0f3b47]">{totalGuests} Tamu</span>
+            <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#0f3b47] text-white text-xs flex items-center justify-center font-bold">2</span>
+              <span>Cek & Atur Tautan Undangan</span>
+            </h2>
+            <p className="text-xs text-[#52717b]">
+              Masukkan link website undangan Anda agar tautan personal tamu terbentuk otomatis
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[#52717b] font-medium hidden sm:inline">Format Tautan:</span>
+            <div className="inline-flex rounded-xl border border-[#ded4be] p-0.5 bg-[#faf6ee] text-xs">
+              <button
+                type="button"
+                onClick={() => setLinkFormat('random')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  linkFormat === 'random'
+                    ? 'bg-[#0f3b47] text-white shadow-xs'
+                    : 'text-[#52717b] hover:text-[#0e2c34]'
+                }`}
+              >
+                Kode Acak (?c=...)
+              </button>
+              <button
+                type="button"
+                onClick={() => setLinkFormat('named')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  linkFormat === 'named'
+                    ? 'bg-[#0f3b47] text-white shadow-xs'
+                    : 'text-[#52717b] hover:text-[#0e2c34]'
+                }`}
+              >
+                Nama (?to=...)
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Nomor WhatsApp Terisi */}
-        <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">
-            <Phone className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[11px] text-[#5e7d87] block font-medium">Nomor WhatsApp Tersedia:</span>
-            <span className="text-lg font-bold text-emerald-800">
-              {withPhoneCount} <span className="text-xs font-normal text-[#5e7d87]">({totalGuests > 0 ? ((withPhoneCount / totalGuests) * 100).toFixed(0) : 0}%)</span>
-            </span>
-          </div>
-        </div>
-
-        {/* Sudah RSVP */}
-        <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-[#f0ebd9] border border-[#d8cdb8] text-[#0f3b47]">
-            <ClipboardList className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[11px] text-[#5e7d87] block font-medium">Konfirmasi RSVP:</span>
-            <span className="text-lg font-bold text-[#0f3b47]">
-              {rsvpedCount} <span className="text-xs font-normal text-[#5e7d87]">sudah mengisi ({percentage}%)</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Settings Row: Base URL & Format Option */}
-      <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex-1 max-w-md">
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-[11px] font-bold text-[#1f404b]">
-              Base URL Undangan
+        {/* Kotak Link Undangan (Base URL) */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-[#0e2c34]">
+              Link Undangan (Base URL)
             </label>
             {baseUrl.trim() && (
               <button
                 type="button"
                 onClick={() => handleBaseUrlChange('')}
-                className="text-[10px] text-rose-600 hover:text-rose-800 font-medium hover:underline cursor-pointer"
-                title="Kosongkan URL agar kembali ke preview arahan"
+                className="text-[11px] text-rose-700 hover:underline font-medium"
+                title="Kosongkan link agar kembali ke arahan default"
               >
                 Kosongkan
               </button>
@@ -633,260 +762,101 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
             type="text"
             value={baseUrl}
             onChange={(e) => handleBaseUrlChange(e.target.value)}
-            placeholder={previewBaseUrl}
-            className="w-full px-3 py-1.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+            placeholder="masukkan link undangan anda (namapasangan.joyever.id)"
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs font-mono text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
           />
-          <p className="text-[10.5px] text-[#5e7d87] mt-1 leading-tight">
+          <p className="text-[11px] text-[#52717b] leading-relaxed">
+            Arahan: <span className="text-[#0e2c34] font-medium">masukkan link undangan anda (namapasangan.joyever.id)</span>
             {baseUrl.trim() ? (
-              <span className="text-emerald-700 font-medium">
-                ✓ Tersimpan di akun {customer.couple_names || customer.slug}
-              </span>
+              <span className="text-teal-800 font-semibold ml-2">✓ Tersimpan untuk akun ini</span>
             ) : (
-              <span>
-                Format arahan: <code className="text-[#0f3b47] font-mono">{previewBaseUrl}</code> (Ketik teks untuk menyimpan ke akun ini)
-              </span>
+              <span className="text-[#698892] ml-1">(Kotak dikosongkan secara default)</span>
             )}
           </p>
         </div>
+      </div>
 
-        <div className="flex items-center gap-3">
+      {/* LANGKAH 3: Daftar Tamu & Kirim via WhatsApp */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#eee5d4] pb-3">
           <div>
-            <span className="text-[11px] text-[#6e8a93] font-medium block mb-1">Format Tautan:</span>
-            <div className="inline-flex rounded-lg border border-[#d8cdb8] p-0.5 bg-[#f0ebd9] text-xs">
+            <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs flex items-center justify-center font-bold">3</span>
+              <span>Daftar Tamu & Kirim via WhatsApp</span>
+            </h2>
+            <p className="text-xs text-[#52717b]">
+              Tombol WhatsApp di bawah siap dikirim langsung dengan satu klik
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded4be] font-bold text-[#0e2c34]">
+              {totalGuests} Tamu ({withPhoneCount} ada No. WA, {rsvpedCount} sudah konfirmasi)
+            </span>
+
+            {guests.length > 0 && (
               <button
                 type="button"
-                onClick={() => setLinkFormat('random')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
-                  linkFormat === 'random'
-                    ? 'bg-[#0f3b47] text-white shadow-xs'
-                    : 'text-[#345863] hover:text-[#0f3b47]'
-                }`}
+                onClick={handleClearAllGuests}
+                className="p-1.5 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 transition"
+                title="Kosongkan daftar tamu"
               >
-                Kode Acak (?c=...)
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
+            )}
+          </div>
+        </div>
+
+        {/* Search & Filter */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-4 h-4 text-[#73929c] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama atau nomor WhatsApp..."
+              className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+            />
+            {searchQuery && (
               <button
                 type="button"
-                onClick={() => setLinkFormat('named')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
-                  linkFormat === 'named'
-                    ? 'bg-[#0f3b47] text-white shadow-xs'
-                    : 'text-[#345863] hover:text-[#0f3b47]'
-                }`}
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#819ea7] hover:text-[#0e2c34]"
               >
-                Nama (?to=...)
+                ✕
               </button>
-            </div>
+            )}
           </div>
 
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={handleCopyAllLinks}
-              disabled={guests.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7e0cc] border border-[#d8cdb8] disabled:opacity-40 transition shadow-xs"
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[#52717b] font-medium hidden sm:inline">Filter:</span>
+            <select
+              value={filterPhone}
+              onChange={(e) => setFilterPhone(e.target.value as any)}
+              className="px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-medium focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             >
-              {copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedAll ? 'Tersalin!' : 'Salin Semua Tautan'}</span>
-            </button>
+              <option value="all">Semua Tamu ({guests.length})</option>
+              <option value="with_phone">Ada Nomor WA ({withPhoneCount})</option>
+              <option value="no_phone">Belum Ada Nomor ({guests.length - withPhoneCount})</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      {/* Search and Filters Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 text-[#73929c] absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nama atau nomor WhatsApp..."
-            className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#fffdf9] border border-[#d8cdb8] text-xs text-[#0f3b47] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#819ea7] hover:text-[#0f3b47]"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[#5e7d87] font-medium hidden sm:inline">Filter:</span>
-          <select
-            value={filterPhone}
-            onChange={(e) => setFilterPhone(e.target.value as any)}
-            className="px-3 py-2 rounded-xl bg-[#fffdf9] border border-[#d8cdb8] text-xs text-[#0f3b47] font-medium focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-          >
-            <option value="all">Semua Tamu ({guests.length})</option>
-            <option value="with_phone">Ada Nomor WhatsApp ({withPhoneCount})</option>
-            <option value="no_phone">Belum Ada Nomor ({guests.length - withPhoneCount})</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Main Guests Table & Cards */}
-      {filteredGuests.length === 0 ? (
-        <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-12 text-center space-y-3 shadow-xs">
-          <Users className="w-10 h-10 text-[#85a1ab] mx-auto" />
-          <h3 className="text-sm font-bold text-[#0f3b47]">Belum ada data tamu yang cocok</h3>
-          <p className="text-xs text-[#5e7d87] max-w-sm mx-auto">
-            {searchQuery
-              ? `Tidak ditemukan tamu dengan kata kunci "${searchQuery}".`
-              : 'Daftar tamu masih kosong. Klik tombol "+ Tambah Tamu" di atas untuk menambahkan tamu beserta nomornya.'}
-          </p>
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] transition shadow-xs mt-2"
-          >
-            <UserPlus className="w-4 h-4 text-emerald-300" />
-            <span>Tambah Tamu Pertama</span>
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* Desktop Table View */}
-          <div className="hidden md:block bg-[#fffdf9] border border-[#e3dac8] rounded-2xl overflow-hidden shadow-xs">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#f5eedf] text-[#345761] font-bold border-b border-[#e3dac8]">
-                <tr>
-                  <th className="py-3 px-4">Nama Tamu</th>
-                  <th className="py-3 px-4">Nomor WhatsApp</th>
-                  <th className="py-3 px-4">Kode Acak</th>
-                  <th className="py-3 px-4">Status RSVP</th>
-                  <th className="py-3 px-4">Tautan Personal</th>
-                  <th className="py-3 px-4 text-right">Kirim & Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#eee5d4]">
-                {filteredGuests.map((guest) => {
-                  const isCopied = copiedId === guest.id;
-                  const hasPhone = !!normalizePhoneNumber(guest.phone);
-                  const waUrl = generateWhatsAppUrl(guest.name, guest.phone, guest.link);
-
-                  return (
-                    <tr key={guest.id} className="hover:bg-[#f8f3e9] transition">
-                      {/* Name */}
-                      <td className="py-3.5 px-4 font-bold text-[#0f3b47] max-w-[160px] truncate">
-                        {guest.name}
-                      </td>
-
-                      {/* Phone */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {hasPhone ? (
-                          <div className="inline-flex items-center gap-1.5 text-xs font-mono font-medium text-[#134957]">
-                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{formatPhoneNumber(guest.phone)}</span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(guest)}
-                            className="inline-flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 transition"
-                            title="Klik untuk menambahkan nomor telepon"
-                          >
-                            <span>+ Isi Nomor</span>
-                          </button>
-                        )}
-                      </td>
-
-                      {/* Code */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-[#f0ebd9] text-[#0f3b47] px-2 py-0.5 rounded-md border border-[#d8cdb8]">
-                          <Key className="w-2.5 h-2.5 text-[#5e7d87]" />
-                          {guest.code ? `${guest.code.slice(0, 10)}...` : '-'}
-                        </span>
-                      </td>
-
-                      {/* RSVP Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {guest.isRsvped ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            Sudah RSVP
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#f0ebd9] text-[#688691] border border-[#d8cdb8]">
-                            Belum
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Link Preview & Copy */}
-                      <td className="py-3.5 px-4 max-w-[170px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-mono text-[#4e6e78] truncate block" title={guest.link}>
-                            {guest.link}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(guest.link, guest.id)}
-                            className={`p-1 rounded-md border shrink-0 transition ${
-                              isCopied
-                                ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                                : 'bg-[#f0ebd9] border-[#d8cdb8] text-[#2c4e58] hover:text-[#0f3b47] hover:bg-[#e6dfcb]'
-                            }`}
-                            title="Salin tautan personal"
-                          >
-                            {isCopied ? <Check className="w-3 h-3 text-emerald-700" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
-                        {/* WhatsApp Button (Directs to phone if available) */}
-                        <a
-                          href={waUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition shadow-xs ${
-                            hasPhone
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
-                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
-                          }`}
-                          title={
-                            hasPhone
-                              ? `Buka chat WhatsApp langsung ke ${formatPhoneNumber(guest.phone)}`
-                              : 'Kirim via WhatsApp (Pilih kontak manual)'
-                          }
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Kirim WA</span>
-                        </a>
-
-                        {/* Edit Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(guest)}
-                          className="p-1.5 rounded-lg border bg-[#f0ebd9] border-[#d8cdb8] text-[#2c4e58] hover:text-[#0f3b47] hover:bg-[#e6dfcb] transition"
-                          title="Edit nama atau nomor"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Delete Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteGuest(guest.id, guest.name)}
-                          className="p-1.5 rounded-lg border bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 transition"
-                          title="Hapus tamu"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {/* Daftar Tamu dengan Tombol WhatsApp sebagai Aksi Utama */}
+        {filteredGuests.length === 0 ? (
+          <div className="py-12 text-center space-y-3 bg-[#faf6ee] rounded-2xl border border-[#ded4be]">
+            <Users className="w-10 h-10 text-[#85a1ab] mx-auto" />
+            <h3 className="text-sm font-bold text-[#0e2c34]">Belum ada tamu di daftar ini</h3>
+            <p className="text-xs text-[#52717b] max-w-sm mx-auto">
+              {searchQuery
+                ? `Tidak ditemukan tamu dengan pencarian "${searchQuery}".`
+                : 'Silakan ketik nama tamu di kotak langkah 1 di atas atau gunakan tombol Tempel Banyak Sekaligus.'}
+            </p>
           </div>
-
-          {/* Mobile Card View */}
-          <div className="md:hidden space-y-3">
+        ) : (
+          <div className="space-y-3">
             {filteredGuests.map((guest) => {
               const isCopied = copiedId === guest.id;
               const hasPhone = !!normalizePhoneNumber(guest.phone);
@@ -895,111 +865,193 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
               return (
                 <div
                   key={guest.id}
-                  className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 space-y-3 shadow-xs"
+                  className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] hover:border-[#cbbea7] transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-bold text-sm text-[#0f3b47]">{guest.name}</h4>
+                  {/* Info Tamu & Tautan */}
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-[#0e2c34] truncate">
+                        {guest.name}
+                      </span>
+
                       {hasPhone ? (
-                        <p className="text-xs font-mono text-emerald-800 flex items-center gap-1 mt-0.5">
-                          <Phone className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 font-mono text-[11px] text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                          <Phone className="w-3 h-3 text-teal-700" />
                           <span>{formatPhoneNumber(guest.phone)}</span>
-                        </p>
+                        </span>
                       ) : (
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(guest)}
-                          className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1"
+                          className="text-[10px] text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 font-medium transition"
                         >
-                          + Tambah Nomor WA
+                          + Isi Nomor WA
                         </button>
+                      )}
+
+                      {guest.isRsvped && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full border border-teal-300">
+                          <CheckCircle2 className="w-3 h-3 text-teal-700" />
+                          <span>Sudah Konfirmasi</span>
+                        </span>
                       )}
                     </div>
 
-                    {guest.isRsvped ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
-                        Sudah RSVP
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#f0ebd9] text-[#688691] border border-[#d8cdb8] shrink-0">
-                        Belum RSVP
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Link Preview */}
-                  <div className="text-[11px] font-mono text-[#4e6e78] bg-[#faf6ee] p-2 rounded-xl truncate border border-[#e3dac8]">
-                    {guest.link}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#f0ebd9]">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditModal(guest)}
-                        className="p-1.5 rounded-lg border bg-[#f0ebd9] border-[#d8cdb8] text-[#2c4e58] text-xs"
-                        title="Edit data tamu"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteGuest(guest.id, guest.name)}
-                        className="p-1.5 rounded-lg border bg-rose-50 border-rose-200 text-rose-700 text-xs"
-                        title="Hapus tamu"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
+                    {/* Preview Tautan Undangan */}
                     <div className="flex items-center gap-2">
+                      <span
+                        className="text-[11px] font-mono text-[#52717b] truncate max-w-sm sm:max-w-md bg-white/70 px-2 py-0.5 rounded border border-[#ded4be]"
+                        title={guest.link}
+                      >
+                        {guest.link}
+                      </span>
                       <button
                         type="button"
                         onClick={() => copyToClipboard(guest.link, guest.id)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#f0ebd9] text-[#0f3b47] text-xs font-bold hover:bg-[#e6dfcb] border border-[#d8cdb8]"
+                        className="p-1 rounded text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shrink-0"
+                        title="Salin tautan ini"
                       >
-                        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{isCopied ? 'Tersalin' : 'Salin'}</span>
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-teal-700" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
-
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs ${
-                          hasPhone
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                        }`}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>Kirim WA</span>
-                      </a>
                     </div>
+                  </div>
+
+                  {/* AKSI UTAMA: Tombol WhatsApp yang Menonjol */}
+                  <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-end">
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-xs transition"
+                      title={
+                        hasPhone
+                          ? `Buka WhatsApp langsung ke ${formatPhoneNumber(guest.phone)}`
+                          : 'Kirim via WhatsApp (Pilih kontak manual di WA)'
+                      }
+                    >
+                      <MessageCircle className="w-4 h-4 fill-white text-emerald-600" />
+                      <span>Kirim via WhatsApp</span>
+                      <Send className="w-3.5 h-3.5 opacity-80" />
+                    </a>
+
+                    {/* Aksi Tambahan: Edit & Hapus */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(guest)}
+                      className="p-2 rounded-xl bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] text-[#52717b] hover:text-[#0e2c34] transition"
+                      title="Edit nama atau nomor"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGuest(guest.id, guest.name)}
+                      className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 transition"
+                      title="Hapus tamu"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
-        </>
+        )}
+      </div>
+
+      {/* Modal Import Massal */}
+      {showBatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#fffdfa] border border-[#ded4be] rounded-3xl w-full max-w-lg p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
+              <div className="flex items-center gap-2 text-[#0e2c34]">
+                <Upload className="w-5 h-5 text-[#0f3b47]" />
+                <h3 className="text-base font-bold text-[#0e2c34]">Tempel Daftar Tamu Sekaligus</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBatchModal(false)}
+                className="text-[#6d8a93] hover:text-[#0e2c34] text-sm p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#52717b] leading-relaxed">
+              Salin dan tempel daftar tamu Anda di sini (satu baris per tamu). Format: <code className="text-[#0e2c34] font-bold">Nama, Nomor HP</code> atau cukup <code className="text-[#0e2c34] font-bold">Nama</code> saja jika belum ada nomor.
+            </p>
+
+            <textarea
+              rows={8}
+              value={batchText}
+              onChange={(e) => setBatchText(e.target.value)}
+              placeholder={`Budi Santoso, 081234567890\nSiti Aminah & Keluarga, 085712345678\nDr. Hendra Wijaya, 081987654321\nReza Fahlevi`}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+            />
+
+            <div className="bg-[#f0ebd9] border border-[#ded4be] rounded-2xl p-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={replaceExisting}
+                  onChange={(e) => setReplaceExisting(e.target.checked)}
+                  className="mt-0.5 rounded border-[#ded4be] text-[#0f3b47] focus:ring-[#0f3b47]"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-[#0e2c34] block">
+                    Gantikan seluruh daftar tamu yang ada saat ini
+                  </span>
+                  <span className="text-[11px] text-[#52717b] block leading-tight">
+                    {replaceExisting
+                      ? 'Daftar lama akan digantikan seluruhnya oleh teks baru ini.'
+                      : 'Daftar baru akan ditambahkan ke tamu yang sudah ada.'}
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-[#52717b]">
+                {batchText.split('\n').filter((l) => l.trim()).length} baris terdeteksi
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#52717b] hover:bg-[#f0ebd9] transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportBatch}
+                  disabled={!batchText.trim()}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+                >
+                  {replaceExisting ? 'Ganti Daftar' : 'Tambahkan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal Tambah / Edit Tamu */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-3xl w-full max-w-md p-6 shadow-xl space-y-4">
+          <div className="bg-[#fffdfa] border border-[#ded4be] rounded-3xl w-full max-w-md p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
-              <div className="flex items-center gap-2 text-[#0f3b47]">
-                <UserPlus className="w-5 h-5 text-emerald-700" />
-                <h3 className="text-base font-bold text-[#0f3b47]">
+              <div className="flex items-center gap-2 text-[#0e2c34]">
+                <UserPlus className="w-5 h-5 text-teal-700" />
+                <h3 className="text-base font-bold text-[#0e2c34]">
                   {editingGuest ? 'Edit Data Tamu' : 'Tambah Tamu Baru'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-[#6d8a93] hover:text-[#0f3b47] text-sm p-1"
+                className="text-[#6d8a93] hover:text-[#0e2c34] text-sm p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1013,7 +1065,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
 
             <form onSubmit={handleSaveGuest} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#1f404b] mb-1.5">
+                <label className="block text-xs font-bold text-[#0e2c34] mb-1.5">
                   Nama Tamu <span className="text-rose-600">*</span>
                 </label>
                 <input
@@ -1022,13 +1074,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
                   value={inputName}
                   onChange={(e) => setInputName(e.target.value)}
                   placeholder="Contoh: Budi Santoso & Keluarga"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1f404b] mb-1.5">
+                <label className="block text-xs font-bold text-[#0e2c34] mb-1.5">
                   Nomor WhatsApp / HP
                 </label>
                 <div className="relative">
@@ -1038,11 +1090,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
                     value={inputPhone}
                     onChange={(e) => setInputPhone(e.target.value)}
                     placeholder="Contoh: 081234567890 atau 6281234567890"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                   />
                 </div>
-                <p className="text-[11px] text-[#5e7d87] mt-1.5 leading-relaxed">
-                  Bisa diawali 08, 62, atau +62. Tombol Kirim WA akan otomatis mengarah langsung ke nomor ini.
+                <p className="text-[11px] text-[#52717b] mt-1.5 leading-relaxed">
+                  Bisa diawali 08 atau 62. Tombol Kirim WhatsApp akan langsung mengarah ke nomor ini.
                 </p>
               </div>
 
@@ -1050,7 +1102,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#486b75] hover:bg-[#f0ebd9] transition"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#52717b] hover:bg-[#f0ebd9] transition"
                 >
                   Batal
                 </button>
@@ -1066,127 +1118,137 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         </div>
       )}
 
-      {/* Modal Import Massal */}
-      {showBatchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-3xl w-full max-w-lg p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
-              <div className="flex items-center gap-2 text-[#0f3b47]">
-                <Upload className="w-5 h-5 text-[#0f3b47]" />
-                <h3 className="text-base font-bold text-[#0f3b47]">Import Daftar Tamu Sekaligus</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowBatchModal(false)}
-                className="text-[#6d8a93] hover:text-[#0f3b47] text-sm p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-[#5e7d87] leading-relaxed">
-              Masukkan satu tamu per baris dengan format: <code className="text-[#0f3b47] font-bold">Nama, Nomor HP</code> atau cukup <code className="text-[#0f3b47] font-bold">Nama</code> saja jika belum ada nomor.
-            </p>
-
-            <textarea
-              rows={8}
-              value={batchText}
-              onChange={(e) => setBatchText(e.target.value)}
-              placeholder={`Budi Santoso, 081234567890\nSiti Aminah & Keluarga, 085712345678\nDr. Hendra Wijaya, 081987654321\nReza Fahlevi`}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-            />
-
-            {/* Opsi timpa (replace) atau tambah (append) */}
-            <div className="bg-[#f5eedf] border border-[#ded4be] rounded-2xl p-3">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={replaceExisting}
-                  onChange={(e) => setReplaceExisting(e.target.checked)}
-                  className="mt-0.5 rounded border-[#d8cdb8] text-[#0f3b47] focus:ring-[#0f3b47]"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-[#0f3b47] block">
-                    Gantikan seluruh daftar tamu yang ada saat ini
-                  </span>
-                  <span className="text-[11px] text-[#5e7d87] block leading-tight">
-                    {replaceExisting
-                      ? 'Daftar lama akan digantikan sepenuhnya oleh data impor ini.'
-                      : 'Data impor akan digabungkan/ditambahkan ke daftar tamu yang sudah ada.'}
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-[#5e7d87]">
-                {batchText.split('\n').filter((l) => l.trim()).length} baris terdeteksi
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowBatchModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#486b75] hover:bg-[#f0ebd9] transition"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImportBatch}
-                  disabled={!batchText.trim()}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
-                >
-                  {replaceExisting ? 'Ganti Daftar Tamu' : 'Tambahkan ke Daftar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* WhatsApp Template Editor Modal */}
+      {/* Modal Template Pesan WhatsApp */}
       {showTemplateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-3xl w-full max-w-lg p-6 shadow-xl space-y-4">
+          <div className="bg-[#fffdfa] border border-[#ded4be] rounded-3xl w-full max-w-lg p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
-              <div className="flex items-center gap-2 text-[#0f3b47]">
-                <MessageCircle className="w-5 h-5 text-emerald-700" />
-                <h3 className="text-base font-bold text-[#0f3b47]">Edit Template Pesan WhatsApp</h3>
+              <div className="flex items-center gap-2 text-[#0e2c34]">
+                <MessageCircle className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-base font-bold text-[#0e2c34]">Edit Template Pesan WhatsApp</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowTemplateModal(false)}
-                className="text-[#6d8a93] hover:text-[#0f3b47] text-sm p-1"
+                className="text-[#6d8a93] hover:text-[#0e2c34] text-sm p-1"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-[#5e7d87] leading-relaxed">
-              Gunakan tag <code className="text-[#0f3b47] font-mono font-bold">{"{nama}"}</code> untuk nama tamu, dan <code className="text-[#0f3b47] font-mono font-bold">{"{link}"}</code> untuk tautan undangan khusus.
+            <p className="text-xs text-[#52717b] leading-relaxed">
+              Gunakan tag <code className="text-[#0e2c34] font-mono font-bold">{"{nama}"}</code> untuk nama tamu, dan <code className="text-[#0e2c34] font-mono font-bold">{"{link}"}</code> untuk tautan undangan.
             </p>
 
             <textarea
               rows={8}
               value={waTemplate}
               onChange={(e) => setWaTemplate(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs leading-relaxed font-sans focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs leading-relaxed font-sans focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
 
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
-                onClick={() => setWaTemplate(DEFAULT_WA_TEMPLATE)}
-                className="text-xs text-[#62818c] hover:text-[#0f3b47] font-medium"
+                onClick={() => {
+                  setWaTemplate(DEFAULT_WA_TEMPLATE);
+                  showToast('Template dikembalikan ke teks awal', 'info');
+                }}
+                className="text-xs text-[#52717b] hover:text-[#0e2c34] font-medium underline"
               >
                 Reset ke template awal
               </button>
               <button
                 type="button"
-                onClick={() => setShowTemplateModal(false)}
+                onClick={() => {
+                  setShowTemplateModal(false);
+                  showToast('Template pesan WhatsApp disimpan!', 'success');
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] transition shadow-xs"
               >
                 Simpan & Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pengaturan Format & Base URL */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#fffdfa] border border-[#ded4be] rounded-3xl w-full max-w-md p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
+              <div className="flex items-center gap-2 text-[#0e2c34]">
+                <Sliders className="w-5 h-5 text-[#0f3b47]" />
+                <h3 className="text-base font-bold text-[#0e2c34]">Pengaturan Tautan Undangan</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="text-[#6d8a93] hover:text-[#0e2c34] text-sm p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-[#0e2c34] mb-1">
+                  Base URL Undangan
+                </label>
+                <input
+                  type="text"
+                  value={baseUrl}
+                  onChange={(e) => handleBaseUrlChange(e.target.value)}
+                  placeholder="masukkan link undangan anda (namapasangan.joyever.id)"
+                  className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs font-mono text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                />
+                <p className="text-[11px] text-[#52717b] mt-1 leading-relaxed">
+                  Arahan: <span className="text-[#0e2c34] font-medium">masukkan link undangan anda (namapasangan.joyever.id)</span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#0e2c34] mb-1">
+                  Format Parameter Tautan
+                </label>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setLinkFormat('random')}
+                    className={`p-3 rounded-xl border text-left transition ${
+                      linkFormat === 'random'
+                        ? 'bg-[#0f3b47] text-white border-[#0f3b47] shadow-xs'
+                        : 'bg-[#faf6ee] text-[#0e2c34] border-[#ded4be] hover:bg-[#f0ebd9]'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Kode Acak (?c=...)</span>
+                    <span className="text-[10px] opacity-80 block mt-0.5">Lebih rapi & aman</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setLinkFormat('named')}
+                    className={`p-3 rounded-xl border text-left transition ${
+                      linkFormat === 'named'
+                        ? 'bg-[#0f3b47] text-white border-[#0f3b47] shadow-xs'
+                        : 'bg-[#faf6ee] text-[#0e2c34] border-[#ded4be] hover:bg-[#f0ebd9]'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Nama Terbuka (?to=...)</span>
+                    <span className="text-[10px] opacity-80 block mt-0.5">Nama terlihat di URL</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-[#eee5d4]">
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] transition"
+              >
+                Tutup & Simpan
               </button>
             </div>
           </div>

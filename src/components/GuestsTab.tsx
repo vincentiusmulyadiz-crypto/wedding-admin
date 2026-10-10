@@ -5,20 +5,25 @@ import { formatDateTimeIndonesian, getDetailedAttendanceInfo } from '../lib/form
 import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
 import { exportToCsv } from '../lib/csv';
 import { TableSkeleton } from './Skeleton';
+import { showToast } from '../lib/toast';
 import {
   Search,
-  Filter,
-  ArrowUpDown,
+  SlidersHorizontal,
   Download,
   Trash2,
   ChevronLeft,
   ChevronRight,
   Users,
-  MessageSquare,
-  LinkIcon,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
   AlertTriangle,
-  Clock,
   RotateCw,
+  X,
+  MessageSquare,
+  Clock,
+  LinkIcon,
+  ChevronDown,
 } from 'lucide-react';
 
 interface GuestsTabProps {
@@ -33,16 +38,21 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
   const [page, setPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterAttendance, setFilterAttendance] = useState<string>('all');
+  const [primaryStatusFilter, setPrimaryStatusFilter] = useState<'all' | 'hadir' | 'tidak_hadir' | 'belum_pasti'>('all');
+
+  // Options popover state
+  const [showOptions, setShowOptions] = useState<boolean>(false);
+  const [eventFilter, setEventFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Detail panel state (Side drawer / Bottom sheet)
+  const [selectedGuest, setSelectedGuest] = useState<Rsvp | null>(null);
 
   // Delete modal state
   const [itemToDelete, setItemToDelete] = useState<Rsvp | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
-
-  const [viewMessage, setViewMessage] = useState<Rsvp | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchGuests = useCallback(async () => {
@@ -60,10 +70,17 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .select('*', { count: 'exact' })
         .eq('customer_id', customer.id);
 
-      if (filterAttendance === 'hadir') {
-        query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
-      } else if (filterAttendance !== 'all') {
-        query = query.eq('attendance', filterAttendance);
+      // Primary status filter
+      if (primaryStatusFilter === 'hadir') {
+        if (eventFilter !== 'all') {
+          query = query.eq('attendance', eventFilter);
+        } else {
+          query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
+        }
+      } else if (primaryStatusFilter === 'tidak_hadir') {
+        query = query.eq('attendance', 'tidak_hadir');
+      } else if (primaryStatusFilter === 'belum_pasti') {
+        query = query.eq('attendance', 'belum_pasti');
       }
 
       if (searchQuery.trim()) {
@@ -76,13 +93,21 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
       const { data, count, error } = await query;
 
+      // Fallback for Romeo & Juliet demo data
       if ((error || !data || data.length === 0) && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
         let list = [...DEMO_ROMEO_JULIET_RSVPS];
-        if (filterAttendance === 'hadir') {
-          list = list.filter((r) => r.attendance.startsWith('hadir'));
-        } else if (filterAttendance !== 'all') {
-          list = list.filter((r) => r.attendance === filterAttendance);
+        if (primaryStatusFilter === 'hadir') {
+          if (eventFilter !== 'all') {
+            list = list.filter((r) => r.attendance === eventFilter);
+          } else {
+            list = list.filter((r) => r.attendance.startsWith('hadir'));
+          }
+        } else if (primaryStatusFilter === 'tidak_hadir') {
+          list = list.filter((r) => r.attendance === 'tidak_hadir');
+        } else if (primaryStatusFilter === 'belum_pasti') {
+          list = list.filter((r) => r.attendance === 'belum_pasti');
         }
+
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           list = list.filter((r) => r.name.toLowerCase().includes(q) || (r.message && r.message.toLowerCase().includes(q)));
@@ -106,7 +131,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
     } finally {
       setLoading(false);
     }
-  }, [customer?.id, page, filterAttendance, searchQuery, sortBy, sortOrder]);
+  }, [customer?.id, page, primaryStatusFilter, eventFilter, searchQuery, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchGuests();
@@ -130,9 +155,13 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         .eq('id', itemToDelete.id);
 
       if (error) {
-        alert('Gagal menghapus data: ' + error.message);
+        showToast('Gagal menghapus data: ' + error.message, 'error');
       } else {
+        showToast(`Data konfirmasi "${itemToDelete.name}" berhasil dihapus`, 'success');
         setItemToDelete(null);
+        if (selectedGuest?.id === itemToDelete.id) {
+          setSelectedGuest(null);
+        }
         if (rsvps.length === 1 && page > 1) {
           setPage(page - 1);
         } else {
@@ -141,6 +170,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       }
     } catch (err) {
       console.error('Delete error:', err);
+      showToast('Terjadi kesalahan saat menghapus data', 'error');
     } finally {
       setDeleting(false);
     }
@@ -150,47 +180,33 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
     setExporting(true);
     try {
       const supabase = getSupabase();
-
       let query = supabase
         .from('rsvps')
         .select('*')
         .eq('customer_id', customer.id)
         .order('created_at', { ascending: false });
 
-      if (filterAttendance === 'hadir') {
+      if (primaryStatusFilter === 'hadir') {
         query = query.in('attendance', ['hadir', 'hadir_semua', 'hadir_keduanya', 'hadir_resepsi', 'hadir_adat', 'hadir_pemberkatan']);
-      } else if (filterAttendance !== 'all') {
-        query = query.eq('attendance', filterAttendance);
+      } else if (primaryStatusFilter === 'tidak_hadir') {
+        query = query.eq('attendance', 'tidak_hadir');
+      } else if (primaryStatusFilter === 'belum_pasti') {
+        query = query.eq('attendance', 'belum_pasti');
       }
 
       const { data, error } = await query;
       if (error) {
-        alert('Gagal mengekspor data: ' + error.message);
+        showToast('Gagal mengekspor data: ' + error.message, 'error');
         return;
       }
 
       const rowsData = ((data as Rsvp[]) || []).map((item) => {
-        const attendanceLabel =
-          item.attendance === 'hadir_semua'
-            ? 'Hadir (Semua Acara)'
-            : item.attendance === 'hadir_keduanya'
-            ? 'Hadir (Keduanya)'
-            : item.attendance === 'hadir_resepsi'
-            ? 'Hadir (Resepsi Saja)'
-            : item.attendance === 'hadir_adat'
-            ? 'Hadir (Adat Saja)'
-            : item.attendance === 'hadir_pemberkatan'
-            ? 'Hadir (Pemberkatan Saja)'
-            : item.attendance === 'hadir'
-            ? 'Hadir'
-            : item.attendance === 'tidak_hadir'
-            ? 'Tidak Hadir'
-            : 'Belum Pasti';
-
+        const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
+        const statusLabel = eventDetail ? `${badge.label} (${eventDetail})` : badge.label;
         return [
           item.created_at,
           item.name,
-          attendanceLabel,
+          statusLabel,
           item.guests,
           item.message || '',
           item.guest_param || '',
@@ -200,17 +216,20 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       const headers = [
         'Waktu (Created At)',
         'Nama Tamu',
-        'Kehadiran',
+        'Status Kehadiran',
         'Jumlah Tamu',
         'Ucapan & Doa',
         'Nama di Link (guest_param)',
       ];
 
       const dateStr = new Date().toISOString().slice(0, 10);
-      const filename = `rsvp-${customer.slug}-${dateStr}.csv`;
+      const filename = `konfirmasi-tamu-${customer.slug}-${dateStr}.csv`;
       exportToCsv(filename, headers, rowsData);
+      showToast('File CSV berhasil diunduh!', 'success');
+      setShowOptions(false);
     } catch (err) {
       console.error('Export CSV error:', err);
+      showToast('Terjadi kesalahan saat export CSV', 'error');
     } finally {
       setExporting(false);
     }
@@ -222,36 +241,120 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header and Controls */}
+      {/* 1. Header Ringkas */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#0f3b47] flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0e2c34] flex items-center gap-2">
             <Users className="w-6 h-6 text-[#0f3b47]" />
-            <span>Daftar Konfirmasi Tamu (RSVP)</span>
+            <span>Daftar Konfirmasi Tamu</span>
           </h1>
-          <p className="text-xs text-[#5e7d87]">
-            Total {totalCount} respons masuk untuk undangan {customer.couple_names}
+          <p className="text-xs text-[#52717b] mt-0.5">
+            Total {totalCount} respons kehadiran untuk undangan{' '}
+            <span className="font-semibold text-[#0e2c34]">{customer.couple_names}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Tombol Opsi (Sembunyikan filter lanjutan, sorting, dan export CSV) */}
+        <div className="flex items-center gap-2 self-start sm:self-auto relative">
           <button
             type="button"
             onClick={fetchGuests}
-            className="p-2 rounded-xl bg-[#fffdf9] border border-[#d8cdb8] text-[#3d5e68] hover:text-[#0f3b47] hover:bg-[#f3eedf] transition shadow-xs"
+            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#3d5e68] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs"
             title="Segarkan data"
           >
             <RotateCw className="w-4 h-4" />
           </button>
+
           <button
             type="button"
-            onClick={handleExportCsv}
-            disabled={exporting || totalCount === 0}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#fffdf8] bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-xs"
+            onClick={() => setShowOptions(!showOptions)}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs ${
+              showOptions || eventFilter !== 'all' || sortBy !== 'created_at'
+                ? 'bg-[#0f3b47] text-white border-[#0f3b47]'
+                : 'bg-[#fffdfa] text-[#0e2c34] border-[#ded4be] hover:bg-[#f0ebd9]'
+            }`}
           >
-            <Download className="w-3.5 h-3.5 text-[#fffdf8]" />
-            <span>{exporting ? 'Mengekspor...' : 'Export CSV'}</span>
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Opsi</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${showOptions ? 'rotate-180' : ''}`} />
           </button>
+
+          {/* Popover Menu Opsi */}
+          {showOptions && (
+            <>
+              <div
+                className="fixed inset-0 z-20"
+                onClick={() => setShowOptions(false)}
+              />
+              <div className="absolute right-0 top-11 mt-1 w-72 sm:w-80 bg-[#fffdfa] border border-[#d8cdb8] rounded-2xl shadow-xl p-4 z-30 space-y-4 text-xs animate-in fade-in duration-150">
+                <div className="flex items-center justify-between border-b border-[#eee5d4] pb-2">
+                  <span className="font-bold text-[#0e2c34]">Opsi Tampilan & Tindakan</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowOptions(false)}
+                    className="text-[#6d8a93] hover:text-[#0e2c34]"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Sorting */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-[#0e2c34] block">Urutan Tampilan:</label>
+                  <select
+                    value={`${sortBy}-${sortOrder}`}
+                    onChange={(e) => {
+                      const [sb, so] = e.target.value.split('-');
+                      setSortBy(sb);
+                      setSortOrder(so as 'asc' | 'desc');
+                      setPage(1);
+                    }}
+                    className="w-full py-1.5 px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34]"
+                  >
+                    <option value="created_at-desc">Waktu Terbaru</option>
+                    <option value="created_at-asc">Waktu Terlama</option>
+                    <option value="name-asc">Nama Tamu (A - Z)</option>
+                    <option value="name-desc">Nama Tamu (Z - A)</option>
+                    <option value="guests-desc">Jumlah Tamu Terbanyak</option>
+                    <option value="guests-asc">Jumlah Tamu Tersedikit</option>
+                  </select>
+                </div>
+
+                {/* Filter Rangkaian Acara Lanjutan */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-[#0e2c34] block">Filter Acara Spesifik:</label>
+                  <select
+                    value={eventFilter}
+                    onChange={(e) => {
+                      setEventFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full py-1.5 px-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34]"
+                  >
+                    <option value="all">Semua Jenis Acara</option>
+                    <option value="hadir_semua">Semua Acara</option>
+                    <option value="hadir_resepsi">Resepsi Saja</option>
+                    <option value="hadir_adat">Adat Saja</option>
+                    <option value="hadir_pemberkatan">Pemberkatan Saja</option>
+                    <option value="hadir_keduanya">Pemberkatan & Resepsi</option>
+                  </select>
+                </div>
+
+                {/* Export CSV Button */}
+                <div className="pt-2 border-t border-[#eee5d4]">
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    disabled={exporting || totalCount === 0}
+                    className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-white text-xs font-bold disabled:opacity-40 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{exporting ? 'Mengekspor...' : 'Ekspor ke File CSV'}</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -262,181 +365,191 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           <div className="space-y-1">
             <p className="font-bold text-rose-900">Gagal Memuat Data Supabase:</p>
             <p className="font-mono text-[11px]">{fetchError}</p>
-            <p className="text-rose-700">Pastikan tabel 'rsvps' dan RLS policy di Supabase sudah dibuat dan akun Anda memiliki izin baca.</p>
           </div>
         </div>
       )}
 
-      {/* Filter and Search Bar (Cream surface) */}
-      <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Search Input */}
-          <form onSubmit={handleSearchSubmit} className="md:col-span-5 relative">
+      {/* 2. Tampilan Awal: Hanya Kolom Pencarian dan Satu Filter Status di Atas */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Kolom Pencarian */}
+          <form onSubmit={handleSearchSubmit} className="relative flex-1">
             <Search className="w-4 h-4 text-[#75949e] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari nama, ucapan, atau nama di link..."
+              placeholder="Cari nama atau ucapan tamu..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#819ea7] text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] placeholder-[#819ea7] text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
           </form>
 
-          {/* Filter Attendance */}
-          <div className="md:col-span-3 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-[#75949e] shrink-0" />
-            <select
-              value={filterAttendance}
-              onChange={(e) => {
-                setFilterAttendance(e.target.value);
+          {/* Satu Filter Status Utama */}
+          <div className="inline-flex rounded-xl border border-[#ded4be] p-1 bg-[#faf6ee] text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setPrimaryStatusFilter('all');
                 setPage(1);
               }}
-              className="w-full py-2 px-3 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              className={`px-3 py-1.5 rounded-lg font-bold transition ${
+                primaryStatusFilter === 'all'
+                  ? 'bg-[#0f3b47] text-white shadow-xs'
+                  : 'text-[#52717b] hover:text-[#0e2c34]'
+              }`}
             >
-              <option value="all">Semua Kehadiran</option>
-              <option value="hadir">Semua yang Hadir</option>
-              <option value="hadir_semua">Hadir (Semua Acara)</option>
-              <option value="hadir_resepsi">Hadir (Resepsi Saja)</option>
-              <option value="hadir_adat">Hadir (Adat Saja)</option>
-              <option value="hadir_pemberkatan">Hadir (Pemberkatan Saja)</option>
-              <option value="hadir_keduanya">Hadir (Keduanya)</option>
-              <option value="tidak_hadir">Tidak Hadir Saja</option>
-              <option value="belum_pasti">Belum Pasti Saja</option>
-            </select>
-          </div>
-
-          {/* Sort By */}
-          <div className="md:col-span-4 flex items-center gap-2">
-            <ArrowUpDown className="w-4 h-4 text-[#75949e] shrink-0" />
-            <select
-              value={`${sortBy}-${sortOrder}`}
-              onChange={(e) => {
-                const [sb, so] = e.target.value.split('-');
-                setSortBy(sb);
-                setSortOrder(so as 'asc' | 'desc');
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPrimaryStatusFilter('hadir');
                 setPage(1);
               }}
-              className="w-full py-2 px-3 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+                primaryStatusFilter === 'hadir'
+                  ? 'bg-teal-700 text-white shadow-xs'
+                  : 'text-[#52717b] hover:text-teal-800'
+              }`}
             >
-              <option value="created_at-desc">Waktu Terbaru</option>
-              <option value="created_at-asc">Waktu Terlama</option>
-              <option value="name-asc">Nama (A - Z)</option>
-              <option value="name-desc">Nama (Z - A)</option>
-              <option value="guests-desc">Jumlah Tamu Terbanyak</option>
-              <option value="guests-asc">Jumlah Tamu Tersedikit</option>
-            </select>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Hadir</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPrimaryStatusFilter('tidak_hadir');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+                primaryStatusFilter === 'tidak_hadir'
+                  ? 'bg-rose-700 text-white shadow-xs'
+                  : 'text-[#52717b] hover:text-rose-800'
+              }`}
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>Tidak Hadir</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPrimaryStatusFilter('belum_pasti');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 ${
+                primaryStatusFilter === 'belum_pasti'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-[#52717b] hover:text-amber-800'
+              }`}
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Belum Pasti</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content: Table on Desktop, Stacked Cards on Mobile */}
+      {/* 3. Daftar Ringkas (Tabel / Card) */}
       {loading ? (
         <TableSkeleton rows={8} />
       ) : rsvps.length === 0 ? (
-        <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-3xl p-12 text-center space-y-3 shadow-xs">
-          <div className="w-12 h-12 rounded-full bg-[#f4ede0] border border-[#ded3bc] flex items-center justify-center mx-auto text-[#0f3b47]">
+        <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-12 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-full bg-[#f0ebd9] border border-[#ded4be] flex items-center justify-center mx-auto text-[#0f3b47]">
             <Users className="w-6 h-6" />
           </div>
-          <h2 className="text-base font-bold text-[#0f3b47]">Tidak ada data RSVP ditemukan</h2>
-          <p className="text-xs text-[#5e7d87] max-w-sm mx-auto">
-            {searchQuery || filterAttendance !== 'all'
-              ? 'Coba ubah kata kunci pencarian atau reset filter kehadiran.'
+          <h2 className="text-base font-bold text-[#0e2c34]">Tidak ada data tamu ditemukan</h2>
+          <p className="text-xs text-[#52717b] max-w-sm mx-auto">
+            {searchQuery || primaryStatusFilter !== 'all' || eventFilter !== 'all'
+              ? 'Coba ubah kata kunci pencarian atau reset filter status.'
               : 'Belum ada tamu yang mengisi konfirmasi kehadiran.'}
           </p>
-          {(searchQuery || filterAttendance !== 'all') && (
+          {(searchQuery || primaryStatusFilter !== 'all' || eventFilter !== 'all') && (
             <button
               type="button"
               onClick={() => {
                 setSearchQuery('');
-                setFilterAttendance('all');
+                setPrimaryStatusFilter('all');
+                setEventFilter('all');
                 setPage(1);
               }}
               className="text-xs text-[#0f3b47] hover:underline font-bold pt-2 inline-block"
             >
-              Reset Filter Pencarian
+              Reset Semua Filter
             </button>
           )}
         </div>
       ) : (
         <div className="space-y-4">
+          <p className="text-[11px] text-[#6d8a93] italic px-1">
+            💡 Tips: Klik pada baris atau kartu tamu untuk melihat ucapan lengkap dan detail lainnya.
+          </p>
+
           {/* Desktop Table View */}
-          <div className="hidden md:block bg-[#fffdf9] border border-[#e3dac8] rounded-2xl overflow-hidden shadow-xs">
+          <div className="hidden md:block bg-[#fffdfa] border border-[#e5dcce] rounded-2xl overflow-hidden shadow-xs">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#f5eedf] text-[#345761] font-bold border-b border-[#e3dac8]">
+              <thead className="bg-[#f5eedf] text-[#345761] font-bold border-b border-[#e5dcce]">
                 <tr>
-                  <th className="py-3.5 px-4">Waktu</th>
-                  <th className="py-3.5 px-4">Nama</th>
-                  <th className="py-3.5 px-4">Kehadiran</th>
+                  <th className="py-3.5 px-4">Nama Tamu</th>
                   <th className="py-3.5 px-4 text-center">Jumlah Tamu</th>
-                  <th className="py-3.5 px-4">Ucapan</th>
-                  <th className="py-3.5 px-4">Nama di Link</th>
-                  <th className="py-3.5 px-4 text-right">Aksi</th>
+                  <th className="py-3.5 px-4">Status Kehadiran</th>
+                  <th className="py-3.5 px-4">Ucapan & Doa</th>
+                  <th className="py-3.5 px-4 text-right">Waktu</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#eee5d4]">
                 {rsvps.map((item) => {
                   const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
                   return (
-                    <tr key={item.id} className="hover:bg-[#f8f3e9] transition">
-                      <td className="py-3.5 px-4 text-[#597983] whitespace-nowrap font-mono text-[11px]">
-                        {formatDateTimeIndonesian(item.created_at)}
-                      </td>
-
-                      <td className="py-3.5 px-4 font-bold text-[#0f3b47] max-w-[180px] truncate">
+                    <tr
+                      key={item.id}
+                      onClick={() => setSelectedGuest(item)}
+                      className="hover:bg-[#f5eedf]/60 cursor-pointer transition select-none"
+                      title="Klik untuk membuka detail tamu"
+                    >
+                      {/* 1. Nama */}
+                      <td className="py-3.5 px-4 font-bold text-[#0e2c34] max-w-[190px] truncate">
                         {item.name}
                       </td>
 
+                      {/* 2. Jumlah Tamu */}
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="inline-flex items-center gap-1 font-semibold text-[#0e2c34] bg-[#f0ebd9] px-2 py-0.5 rounded-full border border-[#ded4be]">
+                          <Users className="w-3 h-3 text-[#0f3b47]" />
+                          <span>{item.guests}</span>
+                        </span>
+                      </td>
+
+                      {/* 3. Satu Badge Status dengan Ikon + Warna + Keterangan Acara Kecil */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-1 items-start">
+                        <div className="flex flex-col items-start gap-1">
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.colorClass}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.colorClass}`}
                           >
-                            <span className={`w-1.5 h-1.5 rounded-full ${badge.bgClass}`} />
-                            {badge.label}
+                            {badge.group === 'hadir' && <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />}
+                            {badge.group === 'tidak_hadir' && <XCircle className="w-3.5 h-3.5 text-rose-600" />}
+                            {badge.group === 'belum_pasti' && <HelpCircle className="w-3.5 h-3.5 text-amber-600" />}
+                            <span>{badge.label}</span>
                           </span>
+
                           {eventDetail && (
-                            <span className="text-[10px] font-semibold text-[#0f3b47] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#d8cdb8]">
+                            <span className="text-[10px] text-[#52717b] font-medium pl-1">
                               Acara: {eventDetail}
                             </span>
                           )}
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center font-bold font-mono text-[#0f3b47]">
-                        {item.guests}
+                      {/* 4. Ucapan Cuplikan Singkat */}
+                      <td className="py-3.5 px-4 max-w-xs truncate text-[#2b4c56] italic">
+                        {item.message ? `"${item.message}"` : <span className="text-[#96adb5] not-italic">-</span>}
                       </td>
 
-                      <td className="py-3.5 px-4 max-w-xs">
-                        {item.message ? (
-                          <button
-                            type="button"
-                            onClick={() => setViewMessage(item)}
-                            className="text-left text-[#1c3d47] hover:text-[#0f3b47] hover:underline truncate block max-w-[240px] italic"
-                            title="Klik untuk membaca selengkapnya"
-                          >
-                            "{item.message}"
-                          </button>
-                        ) : (
-                          <span className="text-[#96adb5]">-</span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-[#597983] font-mono text-[11px] max-w-[140px] truncate">
-                        {item.guest_param || '-'}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setItemToDelete(item)}
-                          className="p-1.5 text-rose-700 hover:text-rose-900 hover:bg-rose-100 rounded-lg transition"
-                          title="Hapus RSVP"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      {/* 5. Waktu */}
+                      <td className="py-3.5 px-4 text-right text-[#698892] whitespace-nowrap font-mono text-[11px]">
+                        {formatDateTimeIndonesian(item.created_at)}
                       </td>
                     </tr>
                   );
@@ -452,70 +565,58 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               return (
                 <div
                   key={item.id}
-                  className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 space-y-3 shadow-xs"
+                  onClick={() => setSelectedGuest(item)}
+                  className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 space-y-2.5 shadow-xs hover:border-[#cbbea7] active:scale-[0.99] cursor-pointer transition"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
+                      <span className="font-bold text-[#0e2c34] text-sm block">
+                        {item.name}
+                      </span>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-[#0f3b47] text-sm">
-                          {item.name}
-                        </span>
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${badge.colorClass}`}
+                          className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${badge.colorClass}`}
                         >
-                          {badge.label}
+                          {badge.group === 'hadir' && <CheckCircle2 className="w-3 h-3 text-teal-600" />}
+                          {badge.group === 'tidak_hadir' && <XCircle className="w-3 h-3 text-rose-600" />}
+                          {badge.group === 'belum_pasti' && <HelpCircle className="w-3 h-3 text-amber-600" />}
+                          <span>{badge.label}</span>
                         </span>
                         {eventDetail && (
-                          <span className="text-[9px] font-semibold text-[#0f3b47] bg-[#f0ebd9] px-1.5 py-0.5 rounded border border-[#d8cdb8]">
-                            Acara: {eventDetail}
+                          <span className="text-[10px] text-[#52717b] font-medium">
+                            ({eventDetail})
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#698892] font-mono">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatDateTimeIndonesian(item.created_at)}</span>
-                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setItemToDelete(item)}
-                      className="p-2 text-rose-700 hover:bg-rose-100 rounded-xl"
-                      title="Hapus RSVP"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <span className="inline-flex items-center gap-1 font-semibold text-xs text-[#0e2c34] bg-[#f0ebd9] px-2.5 py-1 rounded-full border border-[#ded4be] shrink-0">
+                      <Users className="w-3 h-3 text-[#0f3b47]" />
+                      <span>{item.guests} tamu</span>
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-[#eee5d4] bg-[#faf6ee] rounded-xl px-3">
-                    <div className="flex items-center gap-2 text-[#0f3b47] font-semibold">
-                      <Users className="w-3.5 h-3.5 text-[#0f3b47]" />
-                      <span>{item.guests} Orang</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[#5e7d87] truncate">
-                      <LinkIcon className="w-3.5 h-3.5 text-[#7c9aa3] shrink-0" />
-                      <span className="truncate font-mono text-[11px]">{item.guest_param || '(tanpa parameter)'}</span>
-                    </div>
-                  </div>
-
-                  {item.message ? (
-                    <div className="text-xs text-[#1e424c] italic bg-[#faf6ee] p-2.5 rounded-xl border border-[#e5dcce]">
+                  {item.message && (
+                    <p className="text-xs text-[#2b4c56] italic line-clamp-2 bg-[#faf6ee] p-2 rounded-xl border border-[#ded4be]">
                       "{item.message}"
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-[#93abb3] italic">Tidak ada pesan ucapan</p>
+                    </p>
                   )}
+
+                  <div className="flex items-center justify-between text-[10px] text-[#698892] pt-1">
+                    <span>{formatDateTimeIndonesian(item.created_at)}</span>
+                    <span className="font-semibold text-[#0f3b47]">Sentuh untuk detail →</span>
+                  </div>
                 </div>
               );
             })}
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-xs text-[#5e7d87]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-xs text-[#52717b]">
             <div>
-              Menampilkan <span className="font-bold text-[#0f3b47]">{startItem}</span> -{' '}
-              <span className="font-bold text-[#0f3b47]">{endItem}</span> dari{' '}
-              <span className="font-bold text-[#0f3b47]">{totalCount}</span> tamu
+              Menampilkan <span className="font-bold text-[#0e2c34]">{startItem}</span> -{' '}
+              <span className="font-bold text-[#0e2c34]">{endItem}</span> dari{' '}
+              <span className="font-bold text-[#0e2c34]">{totalCount}</span> tamu
             </div>
 
             <div className="flex items-center gap-2">
@@ -523,13 +624,13 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#fffdf9] border border-[#d8cdb8] text-[#2c4e57] hover:bg-[#f3eedf] disabled:opacity-40 disabled:cursor-not-allowed transition font-semibold"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#2c4e57] hover:bg-[#f0ebd9] disabled:opacity-40 disabled:cursor-not-allowed transition font-semibold"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Sebelumnya</span>
               </button>
 
-              <span className="px-2 font-mono font-bold text-[#0f3b47]">
+              <span className="px-2 font-mono font-bold text-[#0e2c34]">
                 {page} / {totalPages}
               </span>
 
@@ -537,7 +638,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#fffdf9] border border-[#d8cdb8] text-[#2c4e57] hover:bg-[#f3eedf] disabled:opacity-40 disabled:cursor-not-allowed transition font-semibold"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#2c4e57] hover:bg-[#f0ebd9] disabled:opacity-40 disabled:cursor-not-allowed transition font-semibold"
               >
                 <span>Berikutnya</span>
                 <ChevronRight className="w-4 h-4" />
@@ -547,23 +648,150 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         </div>
       )}
 
+      {/* 4. Panel Detail: Side Drawer (Desktop) & Bottom Sheet (Mobile) */}
+      {selectedGuest && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-stretch justify-end">
+          {/* Backdrop overlay */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setSelectedGuest(null)}
+          />
+
+          {/* Panel Container (Slide in drawer desktop, Bottom sheet mobile) */}
+          <div className="relative z-50 w-full sm:max-w-md bg-[#fffdfa] border-t sm:border-t-0 sm:border-l border-[#ded4be] rounded-t-3xl sm:rounded-none shadow-2xl p-6 flex flex-col justify-between max-h-[88vh] sm:max-h-full overflow-y-auto animate-in fade-in duration-200">
+            {/* Top Drag Pill on Mobile */}
+            <div className="sm:hidden w-12 h-1.5 bg-[#ded4be] rounded-full mx-auto mb-4" />
+
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 border-b border-[#eee5d4] pb-4">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#75949e] block">
+                    Detail Konfirmasi Tamu
+                  </span>
+                  <h3 className="text-xl font-bold text-[#0e2c34] mt-0.5">
+                    {selectedGuest.name}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGuest(null)}
+                  className="p-1.5 rounded-xl text-[#75949e] hover:text-[#0e2c34] hover:bg-[#f0ebd9]"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status Badge & Acara */}
+              {(() => {
+                const { badge, eventDetail } = getDetailedAttendanceInfo(
+                  selectedGuest.attendance,
+                  selectedGuest.message
+                );
+                return (
+                  <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#52717b]">Status Kehadiran:</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${badge.colorClass}`}
+                      >
+                        {badge.group === 'hadir' && <CheckCircle2 className="w-4 h-4 text-teal-600" />}
+                        {badge.group === 'tidak_hadir' && <XCircle className="w-4 h-4 text-rose-600" />}
+                        {badge.group === 'belum_pasti' && <HelpCircle className="w-4 h-4 text-amber-600" />}
+                        <span>{badge.label}</span>
+                      </span>
+                    </div>
+
+                    {eventDetail && (
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-[#eee5d4]">
+                        <span className="text-[#52717b] font-medium">Rangkaian Acara:</span>
+                        <span className="font-bold text-[#0e2c34]">{eventDetail}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-[#eee5d4]">
+                      <span className="text-[#52717b] font-medium">Jumlah Tamu Hadir:</span>
+                      <span className="font-bold text-[#0e2c34]">{selectedGuest.guests} Orang</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Info Tambahan: Parameter & Waktu */}
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf6ee] border border-[#ded4be]">
+                  <div className="flex items-center gap-2 text-[#52717b]">
+                    <Clock className="w-3.5 h-3.5 text-[#0f3b47]" />
+                    <span>Waktu Konfirmasi:</span>
+                  </div>
+                  <span className="font-mono text-[#0e2c34] font-medium">
+                    {formatDateTimeIndonesian(selectedGuest.created_at)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf6ee] border border-[#ded4be]">
+                  <div className="flex items-center gap-2 text-[#52717b]">
+                    <LinkIcon className="w-3.5 h-3.5 text-[#0f3b47]" />
+                    <span>Tautan Parameter:</span>
+                  </div>
+                  <span className="font-mono text-[#0e2c34] font-medium">
+                    {selectedGuest.guest_param || '(tanpa parameter)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ucapan Lengkap */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-[#0e2c34] flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4 text-[#0f3b47]" />
+                  <span>Ucapan & Doa Restu Lengkap:</span>
+                </span>
+                <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] text-sm text-[#0e2c34] leading-relaxed whitespace-pre-wrap italic">
+                  {selectedGuest.message ? `"${selectedGuest.message}"` : <span className="text-[#88a4ad] not-italic">(Tamu tidak meninggalkan pesan tertulis)</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions: Tombol Hapus */}
+            <div className="pt-6 border-t border-[#eee5d4] flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(selectedGuest)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus Konfirmasi Ini</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedGuest(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] transition"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-3xl w-full max-w-md p-6 shadow-xl space-y-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#fffdfa] border border-[#ded4be] rounded-3xl w-full max-w-md p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-rose-700">
               <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300">
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-[#0f3b47]">Konfirmasi Penghapusan</h3>
-                <p className="text-xs text-[#5e7d87]">Tindakan ini tidak dapat dibatalkan</p>
+                <h3 className="text-base font-bold text-[#0e2c34]">Konfirmasi Penghapusan</h3>
+                <p className="text-xs text-[#52717b]">Tindakan ini tidak dapat dibatalkan</p>
               </div>
             </div>
 
             <p className="text-xs text-[#2b4c56] leading-relaxed">
-              Apakah Anda yakin ingin menghapus data RSVP dari{' '}
-              <strong className="text-[#0f3b47]">"{itemToDelete.name}"</strong>?
+              Apakah Anda yakin ingin menghapus data konfirmasi kehadiran dari{' '}
+              <strong className="text-[#0e2c34]">"{itemToDelete.name}"</strong>?
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -571,7 +799,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 type="button"
                 onClick={() => setItemToDelete(null)}
                 disabled={deleting}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#3d5e68] hover:text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7e0cc] transition"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#52717b] hover:text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e7e0cc] transition"
               >
                 Batal
               </button>
@@ -582,41 +810,6 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-50 transition shadow-xs"
               >
                 {deleting ? 'Menghapus...' : 'Ya, Hapus'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Message Modal */}
-      {viewMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-3xl w-full max-w-lg p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
-              <div className="flex items-center gap-2 text-[#0f3b47]">
-                <MessageSquare className="w-5 h-5" />
-                <h3 className="text-sm font-bold text-[#0f3b47]">Ucapan dari {viewMessage.name}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewMessage(null)}
-                className="text-[#6d8b94] hover:text-[#0f3b47] text-xs px-2 py-1 font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#e3dac8] text-sm text-[#0f3b47] leading-relaxed whitespace-pre-wrap">
-              {viewMessage.message}
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setViewMessage(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-[#fffdf8] bg-[#0f3b47] hover:bg-[#154e5e]"
-              >
-                Tutup
               </button>
             </div>
           </div>

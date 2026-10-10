@@ -84,72 +84,63 @@ export function calculateCountdown(eventDateString: string | null | undefined): 
 }
 
 export function getAttendanceBadge(attendance: AttendanceType | string): {
+  group: 'hadir' | 'tidak_hadir' | 'belum_pasti';
   label: string;
   colorClass: string;
   bgClass: string;
 } {
-  switch (attendance) {
-    case 'hadir':
-    case 'hadir_semua':
-    case 'hadir_keduanya':
-      return {
-        label: attendance === 'hadir_semua' ? 'Hadir (Semua Acara)' : attendance === 'hadir_keduanya' ? 'Hadir (Keduanya)' : 'Hadir',
-        colorClass: 'text-emerald-800 border-emerald-300 bg-emerald-100/80',
-        bgClass: 'bg-emerald-600',
-      };
-    case 'hadir_resepsi':
-      return {
-        label: 'Hadir (Resepsi Saja)',
-        colorClass: 'text-teal-800 border-teal-300 bg-teal-100/80',
-        bgClass: 'bg-teal-600',
-      };
-    case 'hadir_adat':
-      return {
-        label: 'Hadir (Adat Saja)',
-        colorClass: 'text-sky-800 border-sky-300 bg-sky-100/80',
-        bgClass: 'bg-sky-600',
-      };
-    case 'hadir_pemberkatan':
-      return {
-        label: 'Hadir (Pemberkatan Saja)',
-        colorClass: 'text-indigo-800 border-indigo-300 bg-indigo-100/80',
-        bgClass: 'bg-indigo-600',
-      };
-    case 'tidak_hadir':
-      return {
-        label: 'Tidak Hadir',
-        colorClass: 'text-rose-800 border-rose-300 bg-rose-100/80',
-        bgClass: 'bg-rose-600',
-      };
-    case 'belum_pasti':
-    default:
-      return {
-        label: 'Belum Pasti',
-        colorClass: 'text-amber-800 border-amber-300 bg-amber-100/80',
-        bgClass: 'bg-amber-600',
-      };
+  const att = (attendance || '').toLowerCase().trim();
+
+  if (att.startsWith('hadir')) {
+    return {
+      group: 'hadir',
+      label: 'Akan Hadir',
+      colorClass: 'text-emerald-900 border-emerald-300 bg-emerald-50',
+      bgClass: 'bg-emerald-600',
+    };
   }
+
+  if (att === 'tidak_hadir') {
+    return {
+      group: 'tidak_hadir',
+      label: 'Tidak Hadir',
+      colorClass: 'text-rose-900 border-rose-300 bg-rose-50',
+      bgClass: 'bg-rose-600',
+    };
+  }
+
+  return {
+    group: 'belum_pasti',
+    label: 'Belum Pasti',
+    colorClass: 'text-amber-900 border-amber-300 bg-amber-50',
+    bgClass: 'bg-amber-600',
+  };
 }
 
 export function getDetailedAttendanceInfo(
   attendance: AttendanceType | string,
   message?: string | null
 ): {
-  badge: { label: string; colorClass: string; bgClass: string };
+  badge: {
+    group: 'hadir' | 'tidak_hadir' | 'belum_pasti';
+    label: string;
+    colorClass: string;
+    bgClass: string;
+  };
   eventDetail: string;
 } {
   const badge = getAttendanceBadge(attendance);
   let eventDetail = '';
 
-  const att = (attendance || '').toLowerCase();
+  const att = (attendance || '').toLowerCase().trim();
   if (att === 'hadir_semua') {
-    eventDetail = 'Attend All (Semua Acara)';
+    eventDetail = 'Semua Acara';
   } else if (att === 'hadir_resepsi') {
-    eventDetail = 'Reservation / Resepsi';
+    eventDetail = 'Resepsi Saja';
   } else if (att === 'hadir_adat') {
-    eventDetail = 'Adat / Culture';
+    eventDetail = 'Adat Saja';
   } else if (att === 'hadir_pemberkatan') {
-    eventDetail = 'Pemberkatan / Holy Matrimony';
+    eventDetail = 'Pemberkatan Saja';
   } else if (att === 'hadir_keduanya') {
     eventDetail = 'Pemberkatan & Resepsi';
   }

@@ -6,10 +6,29 @@ import { Login } from './components/Login';
 import { OverviewTab } from './components/OverviewTab';
 import { GuestsTab } from './components/GuestsTab';
 import { GuestLinksTab } from './components/GuestLinksTab';
+import { TutorialTab } from './components/TutorialTab';
 import { CustomerAdminTab } from './components/CustomerAdminTab';
 import { ConfigModal } from './components/ConfigModal';
-import { Loader2, Sparkles, FolderX, Copy, Check, AlertTriangle, RotateCw } from 'lucide-react';
+import {
+  Loader2,
+  Sparkles,
+  FolderX,
+  Copy,
+  Check,
+  AlertTriangle,
+  RotateCw,
+  CheckCircle2,
+  Info,
+  XCircle,
+} from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
+import type { ToastType } from './lib/toast';
+
+interface ActiveToast {
+  id: string;
+  message: string;
+  type: ToastType;
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -22,6 +41,32 @@ export function App() {
   const [configOpen, setConfigOpen] = useState<boolean>(false);
   const [copiedUid, setCopiedUid] = useState<boolean>(false);
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
+
+  // Global Toast state
+  const [toasts, setToasts] = useState<ActiveToast[]>([]);
+
+  useEffect(() => {
+    const handleToastEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string; type: ToastType }>;
+      if (customEvent.detail) {
+        const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        const newToast: ActiveToast = {
+          id,
+          message: customEvent.detail.message,
+          type: customEvent.detail.type || 'success',
+        };
+        setToasts((prev) => [...prev, newToast]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 3200);
+      }
+    };
+
+    window.addEventListener('app-toast', handleToastEvent);
+    return () => {
+      window.removeEventListener('app-toast', handleToastEvent);
+    };
+  }, []);
 
   const checkSession = useCallback(async () => {
     setAuthLoading(true);
@@ -169,7 +214,7 @@ export function App() {
     return (
       <div className="min-h-screen bg-[#f9f6ee] flex flex-col items-center justify-center p-4 text-[#5e7d87] space-y-3">
         <Loader2 className="w-8 h-8 animate-spin text-[#0f3b47]" />
-        <p className="text-xs font-bold text-[#0f3b47]">Memuat sesi dashboard joyever...</p>
+        <p className="text-xs font-bold text-[#0f3b47]">Memuat sesi panel joyever...</p>
       </div>
     );
   }
@@ -180,8 +225,8 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f9f6ee] text-[#0d2e37] flex flex-col selection:bg-[#cfe6ec] selection:text-[#0b2931]">
-      {/* Top Navigation */}
+    <div className="min-h-screen bg-[#f9f6ee] text-[#0e2c34] flex flex-col selection:bg-[#cfe6ec] selection:text-[#0b2931]">
+      {/* Top Navigation & Mobile Bottom Nav */}
       <Navbar
         customers={customers}
         selectedCustomer={selectedCustomer}
@@ -194,36 +239,34 @@ export function App() {
         onOpenConfig={() => setConfigOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      {/* Main Content Area: pb-24 on mobile so bottom nav does not obstruct content */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-10">
         {customersLoading ? (
           <div className="py-20 flex flex-col items-center justify-center text-[#5e7d87] space-y-3">
             <Loader2 className="w-8 h-8 animate-spin text-[#0f3b47]" />
             <p className="text-xs font-semibold">Memuat data undangan...</p>
           </div>
         ) : customers.length === 0 ? (
-          /* Empty state with diagnostics */
-          <div className="max-w-xl mx-auto my-10 bg-[#fffdf9] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 space-y-5 shadow-md">
+          /* Empty state */
+          <div className="max-w-xl mx-auto my-10 bg-[#fffdfa] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 space-y-5 shadow-md">
             <div className="text-center space-y-2">
               <div className="w-14 h-14 rounded-2xl bg-[#f0ebd9] border border-[#d8cdb8] text-[#0f3b47] flex items-center justify-center mx-auto">
                 <FolderX className="w-7 h-7" />
               </div>
-              <h2 className="text-xl font-bold text-[#0f3b47]">
+              <h2 className="text-xl font-bold text-[#0e2c34]">
                 Belum ada undangan untuk akun ini
               </h2>
               <p className="text-xs text-[#5e7d87] max-w-md mx-auto leading-relaxed">
-                Akun <span className="text-[#0f3b47] font-mono font-bold">{session.user.email}</span> belum terhubung ke data undangan di tabel <code className="text-[#0f3b47] font-bold">customers</code>.
+                Akun <span className="text-[#0e2c34] font-mono font-bold">{session.user.email}</span> belum terhubung ke data undangan di database.
               </p>
             </div>
 
-            {/* Error Banner jika ada kegagalan query Supabase */}
             {customersError && (
               <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
                 <div className="space-y-1">
                   <p className="font-bold text-rose-900">Pesan Error Database Supabase:</p>
                   <p className="font-mono text-[11px]">{customersError}</p>
-                  <p className="text-rose-700">Pastikan tabel <code>customers</code> sudah dibuat di Supabase.</p>
                 </div>
               </div>
             )}
@@ -249,7 +292,7 @@ export function App() {
                   <span>{copiedUid ? 'Tersalin!' : 'Salin UID'}</span>
                 </button>
               </div>
-              <p className="font-mono text-[#0f3b47] font-bold text-[11px] break-all bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be]">
+              <p className="font-mono text-[#0e2c34] font-bold text-[11px] break-all bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be]">
                 {session.user.id}
               </p>
             </div>
@@ -257,7 +300,7 @@ export function App() {
             {/* Petunjuk SQL Cepat */}
             <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#d8cdb8] space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-[#0f3b47]">Solusi Cepat via SQL Editor Supabase:</span>
+                <span className="font-bold text-[#0e2c34]">Solusi Cepat via SQL Editor Supabase:</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -274,10 +317,7 @@ export function App() {
                   <span>{copiedSql ? 'SQL Tersalin!' : 'Salin Query SQL'}</span>
                 </button>
               </div>
-              <p className="text-[11px] text-[#5e7d87] leading-relaxed">
-                Jalankan query di bawah ini di <strong>SQL Editor Supabase</strong> untuk mendaftarkan akun ini sebagai admin dan pemilik undangan:
-              </p>
-              <pre className="font-mono text-[10px] text-[#0f3b47] bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be] overflow-x-auto whitespace-pre-wrap font-semibold">
+              <pre className="font-mono text-[10px] text-[#0e2c34] bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be] overflow-x-auto whitespace-pre-wrap font-semibold">
 {`INSERT INTO public.admins (user_id) VALUES ('${session.user.id}') ON CONFLICT (user_id) DO NOTHING;
 INSERT INTO public.customers (slug, couple_names, event_date, owner_id) 
 VALUES ('pernikahan-saya', 'Yana & Edo', '2026-10-24', '${session.user.id}')
@@ -294,7 +334,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                   fetchCustomers();
                 }}
                 disabled={customersLoading}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-[#fffdf8] bg-[#0f3b47] hover:bg-[#154e5e] shadow-xs transition"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] shadow-xs transition"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${customersLoading ? 'animate-spin' : ''}`} />
                 <span>Segarkan / Cek Ulang Sekarang</span>
@@ -323,6 +363,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
               <OverviewTab
                 key={selectedCustomer.id || selectedCustomer.slug}
                 customer={selectedCustomer}
+                onSelectTab={setActiveTab}
               />
             )}
 
@@ -340,6 +381,10 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
               />
             )}
 
+            {activeTab === 'tutorial' && (
+              <TutorialTab onSelectTab={setActiveTab} />
+            )}
+
             {activeTab === 'customers' && isAdmin && (
               <CustomerAdminTab
                 customers={customers}
@@ -351,16 +396,39 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
         )}
       </main>
 
+      {/* Floating Toast Notification Container */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-lg border text-xs font-bold animate-in slide-in-from-bottom duration-200 ${
+                toast.type === 'success'
+                  ? 'bg-[#0f3b47] text-white border-teal-800'
+                  : toast.type === 'error'
+                  ? 'bg-rose-900 text-white border-rose-950'
+                  : 'bg-[#faf6ee] text-[#0e2c34] border-[#ded4be]'
+              }`}
+            >
+              {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+              {toast.type === 'error' && <XCircle className="w-4 h-4 text-rose-300 shrink-0" />}
+              {toast.type === 'info' && <Info className="w-4 h-4 text-teal-700 shrink-0" />}
+              <span>{toast.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="border-t border-[#e3dac8] py-6 text-center text-xs text-[#6e8b94] bg-[#f5eedf]">
         <div className="flex items-center justify-center gap-2">
           <span className="font-bold text-sm text-[#0f3b47]">joyever</span>
           <span>•</span>
-          <span>Panel Kontrol Tamu & Undangan Digital</span>
+          <span>Panel Kontrol Tamu & Undangan Pernikahan</span>
         </div>
       </footer>
 
-      {/* Supabase Configuration Modal (Accessible after login) */}
+      {/* Supabase Configuration Modal */}
       <ConfigModal
         isOpen={configOpen}
         onClose={() => setConfigOpen(false)}

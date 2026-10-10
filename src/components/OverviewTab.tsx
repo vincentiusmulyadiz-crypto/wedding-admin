@@ -6,30 +6,30 @@ import {
   formatDateTimeIndonesian,
   formatTimeOnly,
   calculateCountdown,
-  getAttendanceBadge,
+  getDetailedAttendanceInfo,
 } from '../lib/format';
 import { StatCardsSkeleton } from './Skeleton';
 import {
-  Users,
-  UserCheck,
-  UserX,
+  CheckCircle2,
+  XCircle,
   HelpCircle,
-  UsersRound,
+  Users,
   RotateCw,
   Calendar,
   MessageSquare,
   Sparkles,
   Wifi,
   Radio,
+  ArrowRight,
 } from 'lucide-react';
-
 import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
 
 interface OverviewTabProps {
   customer: Customer;
+  onSelectTab?: (tab: 'overview' | 'guests' | 'links' | 'customers') => void;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
+export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -67,13 +67,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Gagal mengambil data RSVP:', error.message);
+        console.error('Gagal mengambil data konfirmasi:', error.message);
         return;
       }
 
       let rows: Rsvp[] = (rsvps as Rsvp[]) || [];
 
-      // Fallback for Romeo & Juliet demo customer if DB returns no rows
+      // Fallback untuk demo customer jika belum ada baris di DB
       if (rows.length === 0 && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
         rows = DEMO_ROMEO_JULIET_RSVPS;
       }
@@ -136,12 +136,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
         countHadirUmum,
       });
 
-      const wishes = rows.filter((r) => r.message && r.message.trim().length > 0).slice(0, 5);
-      if (wishes.length < 5) {
-        const remaining = rows.filter((r) => !wishes.some((w) => w.id === r.id)).slice(0, 5 - wishes.length);
-        setLatestWishes([...wishes, ...remaining]);
+      // Ambil ucapan terbaru
+      const wishesWithText = rows.filter((r) => r.message && r.message.trim().length > 0).slice(0, 3);
+      if (wishesWithText.length < 3) {
+        const remaining = rows.filter((r) => !wishesWithText.some((w) => w.id === r.id)).slice(0, 3 - wishesWithText.length);
+        setLatestWishes([...wishesWithText, ...remaining]);
       } else {
-        setLatestWishes(wishes);
+        setLatestWishes(wishesWithText);
       }
 
       setLastUpdated(formatTimeOnly(new Date()));
@@ -157,7 +158,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
     fetchOverviewData();
 
     const supabase = getSupabase();
-
     const channelName = `realtime-rsvps-${customer.id}-${Date.now()}`;
     const channel = supabase
       .channel(channelName)
@@ -196,401 +196,378 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer }) => {
   }, [customer?.id, fetchOverviewData]);
 
   const countdown = calculateCountdown(customer.event_date);
-
   const total = stats.totalRsvp;
   const hadirPct = total > 0 ? (stats.hadirCount / total) * 100 : 0;
   const tidakHadirPct = total > 0 ? (stats.tidakHadirCount / total) * 100 : 0;
   const belumPastiPct = total > 0 ? (stats.belumPastiCount / total) * 100 : 0;
 
-  const r = 40;
-  const circumference = 2 * Math.PI * r;
-  const hadirOffset = circumference * (1 - hadirPct / 100);
+  // Single-line countdown header text
+  const countdownText =
+    countdown.label === 'Hari H'
+      ? '🎉 Hari H Pernikahan Hari Ini'
+      : countdown.isPast
+      ? `Acara telah selesai (${countdown.label})`
+      : `${countdown.label} (${countdown.days} hari lagi)`;
 
   return (
     <div className="space-y-6">
-      {/* Top Banner: Couple info & Countdown (Dominant Cream) */}
-      <div className="bg-gradient-to-r from-[#f4ede0] via-[#f7f2e8] to-[#f4ede0] border border-[#ded3bc] rounded-3xl p-5 sm:p-7 shadow-sm relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#ebe2ce] border border-[#dbceb5] text-[#0f3b47] text-xs font-semibold">
-              <Calendar className="w-3.5 h-3.5 text-[#0f3b47]" />
-              <span>{formatDateIndonesian(customer.event_date)}</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#0f3b47]">
+      {/* 1. Header dengan Hitung Mundur Satu Baris */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-7 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#0e2c34]">
               {customer.couple_names}
             </h1>
-            <p className="text-xs text-[#5f7e88] font-mono">
-              Slug tautan: <span className="text-[#0f3b47] font-semibold">/{customer.slug}</span>
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="bg-[#fffdfa] border border-[#ded3bc] rounded-2xl px-6 py-3.5 text-center shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#63828d] block">
-                Hitung Mundur
+            {/* Single line date and countdown badge */}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[#52717b]">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <Calendar className="w-3.5 h-3.5 text-[#0d6274]" />
+                {formatDateIndonesian(customer.event_date)}
               </span>
-              <span className="text-2xl sm:text-3xl font-extrabold text-[#0f3b47]">
-                {countdown.label}
+              <span>•</span>
+              <span className="inline-flex items-center gap-1 font-semibold text-[#0d6274] bg-[#edf6f8] px-2.5 py-0.5 rounded-full border border-[#c4e3ea]">
+                {countdownText}
               </span>
             </div>
           </div>
-        </div>
 
-        {/* Live Status and Refresh Bar */}
-        <div className="mt-5 pt-4 border-t border-[#ded3bc] flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3 text-[#587882]">
-            <div className="flex items-center gap-1.5">
+          {/* Refresh button & live sync status */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs text-[#52717b]">
               {realtimeActive ? (
-                <>
-                  <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                  <span className="text-emerald-700 font-bold">Langsung (Realtime)</span>
-                </>
+                <span className="inline-flex items-center gap-1.5 text-teal-800 font-semibold bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
+                  <Radio className="w-3 h-3 text-teal-600 animate-pulse" />
+                  <span>Realtime aktif</span>
+                </span>
               ) : (
-                <>
-                  <Wifi className="w-3.5 h-3.5 text-[#86a2ab]" />
-                  <span>Polling berkala (60d)</span>
-                </>
+                <span className="inline-flex items-center gap-1.5 text-[#5e7d87] bg-[#f0ebd9] px-2.5 py-1 rounded-full border border-[#ded4be]">
+                  <Wifi className="w-3 h-3 text-[#7a9aa5]" />
+                  <span>Update otomatis (60d)</span>
+                </span>
               )}
             </div>
 
-            {hasNewInsert && (
-              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full animate-bounce">
-                <Sparkles className="w-3 h-3" /> RSVP Baru Masuk!
-              </span>
-            )}
-
-            <span>• Terakhir diperbarui: {lastUpdated || '-'}</span>
+            <button
+              type="button"
+              onClick={() => fetchOverviewData()}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-[#fffdf8] text-xs font-bold transition shadow-xs disabled:opacity-50"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>Segarkan</span>
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => fetchOverviewData()}
-            disabled={refreshing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-[#fffdf8] text-xs font-bold active:scale-95 transition disabled:opacity-50 shadow-xs"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Segarkan</span>
-          </button>
         </div>
+
+        {hasNewInsert && (
+          <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl flex items-center gap-2 text-teal-900 text-xs font-semibold animate-bounce">
+            <Sparkles className="w-4 h-4 text-teal-600" />
+            <span>Ada konfirmasi kehadiran baru yang baru saja masuk!</span>
+          </div>
+        )}
       </div>
 
-      {/* Stat Cards (Cream & White Theme) */}
+      {/* 2. Hero Big Number Focus & 3 Kartu Pendukung */}
       {loading ? (
         <StatCardsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
-          {/* Total RSVP */}
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-[#5f7e88]">
-              <span className="text-xs font-bold">Total RSVP</span>
-              <Users className="w-4 h-4 text-[#0f3b47]" />
+        <div className="space-y-4">
+          {/* Satu Angka Besar Sebagai Fokus: "X tamu akan hadir" */}
+          <div className="bg-gradient-to-br from-[#0f3b47] via-[#144d5c] to-[#0e2c34] text-white rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
+            <div className="relative z-10 space-y-2">
+              <span className="text-xs uppercase tracking-wider font-bold text-[#b5e0eb] block">
+                Total Perkiraan Kehadiran Fisik
+              </span>
+              <div className="flex flex-wrap items-baseline gap-3 pt-1">
+                <span className="text-5xl sm:text-7xl font-extrabold tracking-tight text-white">
+                  {stats.totalGuestsAttending}
+                </span>
+                <span className="text-2xl sm:text-3xl font-bold text-[#d2eff5]">
+                  tamu akan hadir
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-[#b8e1ec] pt-1 leading-relaxed">
+                Dihitung dari <strong className="text-white font-bold">{stats.hadirCount}</strong> konfirmasi kehadiran yang menyatakan hadir (termasuk pasangan / keluarga yang dibawa).
+              </p>
             </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-[#0f3b47] tracking-tight">
-              {stats.totalRsvp}
-            </p>
-            <p className="text-[11px] text-[#718f99]">Respons masuk</p>
+            {/* Subtle decorative background icon */}
+            <Users className="w-48 h-48 text-white/5 absolute -right-6 -bottom-10 pointer-events-none" />
           </div>
 
-          {/* Hadir */}
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-emerald-700">
-              <span className="text-xs font-bold">Hadir</span>
-              <UserCheck className="w-4 h-4" />
+          {/* Hanya 3 Kartu Pendukung: Akan Hadir, Tidak Hadir, Belum Balas */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            {/* 1. Akan Hadir */}
+            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-teal-800">
+                <span className="text-xs font-bold uppercase tracking-wider">Akan Hadir</span>
+                <CheckCircle2 className="w-5 h-5 text-teal-600" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-teal-900">
+                  {stats.hadirCount}
+                </span>
+                <span className="text-xs text-[#52717b] font-medium">konfirmasi</span>
+              </div>
+              <p className="text-[11px] text-[#5e7d87]">
+                {total > 0 ? `${hadirPct.toFixed(0)}% dari seluruh respons` : '0%'}
+              </p>
             </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-emerald-700 tracking-tight">
-              {stats.hadirCount}
-            </p>
-            <p className="text-[11px] text-[#718f99]">
-              {total > 0 ? `${hadirPct.toFixed(1)}% dari respons` : '0%'}
-            </p>
+
+            {/* 2. Tidak Hadir */}
+            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-rose-800">
+                <span className="text-xs font-bold uppercase tracking-wider">Tidak Hadir</span>
+                <XCircle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-rose-900">
+                  {stats.tidakHadirCount}
+                </span>
+                <span className="text-xs text-[#52717b] font-medium">konfirmasi</span>
+              </div>
+              <p className="text-[11px] text-[#5e7d87]">
+                {total > 0 ? `${tidakHadirPct.toFixed(0)}% dari seluruh respons` : '0%'}
+              </p>
+            </div>
+
+            {/* 3. Belum Balas / Ragu */}
+            <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-amber-800">
+                <span className="text-xs font-bold uppercase tracking-wider">Belum Balas / Ragu</span>
+                <HelpCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-amber-900">
+                  {stats.belumPastiCount}
+                </span>
+                <span className="text-xs text-[#52717b] font-medium">konfirmasi</span>
+              </div>
+              <p className="text-[11px] text-[#5e7d87]">
+                {total > 0 ? `${belumPastiPct.toFixed(0)}% dari seluruh respons` : '0%'}
+              </p>
+            </div>
           </div>
 
-          {/* Tidak Hadir */}
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-rose-700">
-              <span className="text-xs font-bold">Tidak Hadir</span>
-              <UserX className="w-4 h-4" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-rose-700 tracking-tight">
-              {stats.tidakHadirCount}
-            </p>
-            <p className="text-[11px] text-[#718f99]">
-              {total > 0 ? `${tidakHadirPct.toFixed(1)}% dari respons` : '0%'}
-            </p>
-          </div>
-
-          {/* Belum Pasti */}
-          <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
-            <div className="flex items-center justify-between text-amber-700">
-              <span className="text-xs font-bold">Belum Pasti</span>
-              <HelpCircle className="w-4 h-4" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-amber-700 tracking-tight">
-              {stats.belumPastiCount}
-            </p>
-            <p className="text-[11px] text-[#718f99]">
-              {total > 0 ? `${belumPastiPct.toFixed(1)}% dari respons` : '0%'}
-            </p>
-          </div>
-
-          {/* Total Tamu Hadir */}
-          <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#0f3b47] to-[#154d5b] text-[#fffdf8] border border-[#0b2b34] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2">
-            <div className="flex items-center justify-between text-[#c4e3ea]">
-              <span className="text-xs font-bold">Total Tamu Hadir</span>
-              <UsersRound className="w-4 h-4" />
-            </div>
-            <p className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {stats.totalGuestsAttending}
-            </p>
-            <p className="text-[11px] text-[#b0dbe4]">Jumlah pax terkonfirmasi</p>
+          {/* Keterangan kecil total konfirmasi RSVP */}
+          <div className="flex items-center justify-between px-2 text-xs text-[#5e7d87]">
+            <span>
+              Total konfirmasi masuk:{' '}
+              <strong className="text-[#0e2c34] font-bold">{stats.totalRsvp}</strong> respons
+            </span>
+            {lastUpdated && <span>Pembaruan terakhir: {lastUpdated}</span>}
           </div>
         </div>
       )}
 
-      {/* Rincian Jenis Kehadiran per Acara */}
-      <div className="bg-[#fffdf9] border border-[#e3dac8] rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[#eee5d4] pb-2.5">
+      {/* 3. Progress Bar Bersegmen (Pengganti Donut Chart) */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-[#eee5d4] pb-3">
           <div>
-            <h2 className="text-sm font-bold text-[#0f3b47] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>Rincian Jenis Kehadiran per Acara</span>
+            <h2 className="text-base font-bold text-[#0e2c34]">
+              Proporsi Status Konfirmasi
             </h2>
-            <p className="text-[11px] text-[#5e7d87]">
-              Distribusi kehadiran tamu pada setiap rangkaian acara pernikahan
+            <p className="text-xs text-[#5e7d87]">
+              Perbandingan persentase jawaban dari seluruh tamu yang sudah merespons
             </p>
           </div>
-          <span className="text-xs font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-full border border-emerald-300 w-fit">
-            Total {stats.hadirCount} tamu hadir ({stats.totalGuestsAttending} pax)
+          <span className="text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] px-3 py-1 rounded-full border border-[#ded4be] w-fit">
+            Total {total} Responden
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
-          {/* Attend All */}
-          <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
-              Semua Acara (Attend All)
-            </span>
-            <p className="text-xl font-extrabold text-emerald-900">
-              {eventStats.countAttendAll} <span className="text-xs font-medium text-emerald-700">respons</span>
-            </p>
+        {total === 0 ? (
+          <div className="py-8 text-center text-[#78939c] text-xs">
+            Belum ada data konfirmasi kehadiran yang masuk.
           </div>
+        ) : (
+          <div className="space-y-4 pt-1">
+            {/* Horizontal Segmented Progress Bar */}
+            <div className="w-full h-5 bg-[#eee5d4] rounded-full overflow-hidden flex shadow-inner">
+              {hadirPct > 0 && (
+                <div
+                  style={{ width: `${hadirPct}%` }}
+                  className="bg-teal-600 h-full transition-all duration-500 hover:brightness-105"
+                  title={`Akan Hadir: ${stats.hadirCount} (${hadirPct.toFixed(1)}%)`}
+                />
+              )}
+              {belumPastiPct > 0 && (
+                <div
+                  style={{ width: `${belumPastiPct}%` }}
+                  className="bg-amber-500 h-full transition-all duration-500 hover:brightness-105"
+                  title={`Belum Pasti: ${stats.belumPastiCount} (${belumPastiPct.toFixed(1)}%)`}
+                />
+              )}
+              {tidakHadirPct > 0 && (
+                <div
+                  style={{ width: `${tidakHadirPct}%` }}
+                  className="bg-rose-500 h-full transition-all duration-500 hover:brightness-105"
+                  title={`Tidak Hadir: ${stats.tidakHadirCount} (${tidakHadirPct.toFixed(1)}%)`}
+                />
+              )}
+            </div>
 
-          {/* Reservation / Resepsi */}
-          <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-teal-800 tracking-wider block">
-              Reservation (Resepsi)
-            </span>
-            <p className="text-xl font-extrabold text-teal-900">
-              {eventStats.countResepsi} <span className="text-xs font-medium text-teal-700">respons</span>
-            </p>
-          </div>
+            {/* Clear Legend with Numbers and Percentages */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-teal-50/70 border border-teal-200">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-teal-600 shrink-0" />
+                  <span className="font-semibold text-teal-950">Akan Hadir</span>
+                </div>
+                <div className="font-bold text-teal-900">
+                  <span>{stats.hadirCount} tamu</span>
+                  <span className="text-[11px] font-normal text-teal-700 ml-1">
+                    ({hadirPct.toFixed(0)}%)
+                  </span>
+                </div>
+              </div>
 
-          {/* Adat / Culture */}
-          <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-200 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-sky-800 tracking-wider block">
-              Adat / Culture
-            </span>
-            <p className="text-xl font-extrabold text-sky-900">
-              {eventStats.countAdat} <span className="text-xs font-medium text-sky-700">respons</span>
-            </p>
-          </div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/70 border border-amber-200">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
+                  <span className="font-semibold text-amber-950">Belum Pasti</span>
+                </div>
+                <div className="font-bold text-amber-900">
+                  <span>{stats.belumPastiCount} tamu</span>
+                  <span className="text-[11px] font-normal text-amber-700 ml-1">
+                    ({belumPastiPct.toFixed(0)}%)
+                  </span>
+                </div>
+              </div>
 
-          {/* Pemberkatan */}
-          <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-indigo-800 tracking-wider block">
-              Pemberkatan (Holy Matrimony)
-            </span>
-            <p className="text-xl font-extrabold text-indigo-900">
-              {eventStats.countPemberkatan} <span className="text-xs font-medium text-indigo-700">respons</span>
-            </p>
-          </div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/70 border border-rose-200">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
+                  <span className="font-semibold text-rose-950">Tidak Hadir</span>
+                </div>
+                <div className="font-bold text-rose-900">
+                  <span>{stats.tidakHadirCount} tamu</span>
+                  <span className="text-[11px] font-normal text-rose-700 ml-1">
+                    ({tidakHadirPct.toFixed(0)}%)
+                  </span>
+                </div>
+              </div>
+            </div>
 
-          {/* Keduanya / Kombinasi */}
-          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
-              Keduanya / Kombinasi
-            </span>
-            <p className="text-xl font-extrabold text-amber-900">
-              {eventStats.countKeduanya + eventStats.countHadirUmum} <span className="text-xs font-medium text-amber-700">respons</span>
-            </p>
+            {/* Progressive Disclosure: Ringkasan Rangkaian Acara */}
+            {(eventStats.countResepsi > 0 || eventStats.countAdat > 0 || eventStats.countPemberkatan > 0 || eventStats.countAttendAll > 0) && (
+              <div className="mt-3 pt-3 border-t border-[#eee5d4]">
+                <p className="text-[11px] font-bold text-[#52717b] uppercase tracking-wider mb-2">
+                  Rincian Acara Tamu Hadir:
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {eventStats.countAttendAll > 0 && (
+                    <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded3bd] font-medium text-[#0e2c34]">
+                      Semua Acara: <strong>{eventStats.countAttendAll}</strong>
+                    </span>
+                  )}
+                  {eventStats.countResepsi > 0 && (
+                    <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded3bd] font-medium text-[#0e2c34]">
+                      Resepsi Saja: <strong>{eventStats.countResepsi}</strong>
+                    </span>
+                  )}
+                  {eventStats.countAdat > 0 && (
+                    <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded3bd] font-medium text-[#0e2c34]">
+                      Adat Saja: <strong>{eventStats.countAdat}</strong>
+                    </span>
+                  )}
+                  {eventStats.countPemberkatan > 0 && (
+                    <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded3bd] font-medium text-[#0e2c34]">
+                      Pemberkatan Saja: <strong>{eventStats.countPemberkatan}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Middle row: Donut Chart & 5 Latest Wishes */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* SVG Donut Chart Card */}
-        <div className="lg:col-span-5 bg-[#fffdf9] border border-[#e3dac8] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between">
-          <div className="border-b border-[#eee5d4] pb-3">
-            <h2 className="text-base font-bold text-[#0f3b47]">Proporsi Kehadiran</h2>
-            <p className="text-xs text-[#62818c]">Persentase konfirmasi dari seluruh tamu yang merespons</p>
+      {/* 4. Tampilkan 3 Ucapan Terbaru + Tombol "Lihat semua" */}
+      <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-[#0f3b47]" />
+            <div>
+              <h2 className="text-base font-bold text-[#0e2c34]">
+                3 Ucapan & Doa Restu Terbaru
+              </h2>
+              <p className="text-xs text-[#5e7d87]">
+                Pesan hangat yang baru saja dikirimkan para tamu
+              </p>
+            </div>
           </div>
 
-          {total === 0 ? (
-            <div className="py-12 text-center text-[#7a959e] text-xs">
-              Belum ada data konfirmasi kehadiran untuk dihitung.
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
-              {/* Donut SVG */}
-              <div className="relative w-40 h-40 shrink-0">
-                <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                  {/* Track */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r={r}
-                    stroke="#eee5d4"
-                    strokeWidth="14"
-                    fill="transparent"
-                  />
-                  {/* Hadir Segment */}
-                  {hadirPct > 0 && (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r={r}
-                      stroke="#059669"
-                      strokeWidth="14"
-                      fill="transparent"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={hadirOffset}
-                      strokeLinecap="round"
-                    />
-                  )}
-                  {/* Tidak Hadir Segment */}
-                  {tidakHadirPct > 0 && (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r={r}
-                      stroke="#e11d48"
-                      strokeWidth="14"
-                      fill="transparent"
-                      strokeDasharray={`${(tidakHadirPct / 100) * circumference} ${circumference}`}
-                      strokeDashoffset={-((hadirPct / 100) * circumference)}
-                    />
-                  )}
-                  {/* Belum Pasti Segment */}
-                  {belumPastiPct > 0 && (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r={r}
-                      stroke="#d97706"
-                      strokeWidth="14"
-                      fill="transparent"
-                      strokeDasharray={`${(belumPastiPct / 100) * circumference} ${circumference}`}
-                      strokeDashoffset={-(((hadirPct + tidakHadirPct) / 100) * circumference)}
-                    />
-                  )}
-                </svg>
-                {/* Center Label */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-extrabold text-[#0f3b47]">{total}</span>
-                  <span className="text-[10px] text-[#5e7e88] font-bold uppercase tracking-wider">RSVP</span>
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div className="space-y-3 w-full sm:w-auto text-xs">
-                <div className="flex items-center justify-between sm:justify-start gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-emerald-600 shrink-0" />
-                    <span className="text-[#193a44] font-medium">Hadir</span>
-                  </div>
-                  <div className="text-right font-bold text-[#0f3b47]">
-                    <span>{stats.hadirCount}</span>
-                    <span className="text-[#698892] text-[11px] ml-1 font-normal">({hadirPct.toFixed(0)}%)</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-start gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-rose-600 shrink-0" />
-                    <span className="text-[#193a44] font-medium">Tidak Hadir</span>
-                  </div>
-                  <div className="text-right font-bold text-[#0f3b47]">
-                    <span>{stats.tidakHadirCount}</span>
-                    <span className="text-[#698892] text-[11px] ml-1 font-normal">({tidakHadirPct.toFixed(0)}%)</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-start gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-600 shrink-0" />
-                    <span className="text-[#193a44] font-medium">Belum Pasti</span>
-                  </div>
-                  <div className="text-right font-bold text-[#0f3b47]">
-                    <span>{stats.belumPastiCount}</span>
-                    <span className="text-[#698892] text-[11px] ml-1 font-normal">({belumPastiPct.toFixed(0)}%)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="p-3 bg-[#faf6ee] rounded-xl border border-[#e5dcce] text-[11px] text-[#5b7a84]">
-            Total kehadiran fisik diestimasikan sebanyak <strong className="text-[#0f3b47]">{stats.totalGuestsAttending} orang</strong> dari {stats.hadirCount} konfirmasi hadir.
-          </div>
+          <button
+            type="button"
+            onClick={() => onSelectTab?.('guests')}
+            className="inline-flex items-center gap-1 text-xs font-bold text-[#0f3b47] hover:text-[#154e5e] hover:underline"
+          >
+            <span>Lihat semua</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {/* Latest 5 Wishes Card */}
-        <div className="lg:col-span-7 bg-[#fffdf9] border border-[#e3dac8] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
-            <div>
-              <h2 className="text-base font-bold text-[#0f3b47] flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-[#0f3b47]" />
-                <span>5 Ucapan & Doa Terbaru</span>
-              </h2>
-              <p className="text-xs text-[#62818c]">Pesan dan doa restu teranyar dari para tamu</p>
-            </div>
+        {latestWishes.length === 0 ? (
+          <div className="py-10 text-center text-[#78939c] text-xs">
+            Belum ada ucapan tertulis dari para tamu.
           </div>
-
-          {latestWishes.length === 0 ? (
-            <div className="py-12 text-center text-[#78939c] text-xs">
-              Belum ada ucapan dari tamu yang tercatat.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {latestWishes.map((item) => {
-                const badge = getAttendanceBadge(item.attendance);
-                return (
-                  <div
-                    key={item.id}
-                    className="p-3.5 rounded-xl bg-[#faf6ee] border border-[#e5dcce] hover:border-[#cbbea7] transition space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="font-bold text-xs text-[#0f3b47] truncate">
-                          {item.name}
+        ) : (
+          <div className="space-y-3">
+            {latestWishes.slice(0, 3).map((item) => {
+              const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
+              return (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-2xl bg-[#faf6ee] border border-[#e5dcce] space-y-2 hover:border-[#cbbea7] transition"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-bold text-xs sm:text-sm text-[#0e2c34] truncate">
+                        {item.name}
+                      </span>
+                      {item.guests > 1 && (
+                        <span className="text-[10px] text-[#0f3b47] bg-[#f0ebd9] px-2 py-0.5 rounded-full border border-[#ded4be] font-semibold shrink-0">
+                          {item.guests} tamu
                         </span>
-                        {item.guests > 1 && (
-                          <span className="text-[10px] text-[#4d6d77] bg-[#f0ebd9] px-1.5 py-0.5 rounded border border-[#d8cdb8] font-medium">
-                            {item.guests} tamu
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${badge.colorClass}`}
-                        >
-                          {badge.label}
-                        </span>
-                        <span className="text-[10px] text-[#698892]">
-                          {formatDateTimeIndonesian(item.created_at)}
-                        </span>
-                      </div>
+                      )}
                     </div>
 
-                    <p className="text-xs text-[#1e424c] leading-relaxed italic line-clamp-3">
-                      {item.message ? `"${item.message}"` : <span className="text-[#78939c] not-italic">(Tidak ada pesan ucapan tertulis)</span>}
-                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${badge.colorClass}`}
+                      >
+                        {badge.group === 'hadir' && <CheckCircle2 className="w-3 h-3 text-teal-600" />}
+                        {badge.group === 'tidak_hadir' && <XCircle className="w-3 h-3 text-rose-600" />}
+                        {badge.group === 'belum_pasti' && <HelpCircle className="w-3 h-3 text-amber-600" />}
+                        <span>{badge.label}</span>
+                        {eventDetail && <span className="opacity-75 font-normal">({eventDetail})</span>}
+                      </span>
+                      <span className="text-[10px] text-[#698892] hidden sm:inline">
+                        {formatDateTimeIndonesian(item.created_at)}
+                      </span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  <p className="text-xs sm:text-sm text-[#1e424c] leading-relaxed italic">
+                    {item.message ? `"${item.message}"` : <span className="text-[#89a4ad] not-italic">(Tidak ada pesan tertulis)</span>}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Action Button: Lihat Semua */}
+        <div className="pt-2 flex justify-center">
+          <button
+            type="button"
+            onClick={() => onSelectTab?.('guests')}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded3bd] text-xs font-bold text-[#0f3b47] transition shadow-xs"
+          >
+            <Users className="w-4 h-4 text-[#0f3b47]" />
+            <span>Buka Seluruh Daftar Tamu & Ucapan</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#0f3b47]" />
+          </button>
         </div>
       </div>
     </div>
