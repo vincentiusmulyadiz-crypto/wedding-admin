@@ -75,14 +75,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     (e.target as HTMLImageElement).src = logo;
                   }}
                 />
-                <div className="flex items-center">
-                  <span className="font-bold text-base sm:text-lg tracking-tight text-[#FAF6EC]">
-                    Joy<span className="text-[#DFD0B8]">ever</span>
-                  </span>
-                  <span className="hidden sm:inline-block text-[10px] uppercase tracking-[0.2em] text-[#DFD0B8] border-l border-[#1C5375] pl-3 ml-2.5">
-                    Panel Undangan
-                  </span>
-                </div>
               </div>
 
               {/* Customer Switcher */}
