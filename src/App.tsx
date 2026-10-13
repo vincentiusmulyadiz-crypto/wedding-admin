@@ -122,7 +122,7 @@ export function App() {
 
   const fetchCustomers = useCallback(async () => {
     if (!session?.user) return;
-    setCustomersLoading(true);
+    setCustomersLoading((prev) => (customers.length === 0 ? true : prev));
     setCustomersError(null);
 
     try {
@@ -161,13 +161,14 @@ export function App() {
   }, [session?.user]);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+  const currentUserId = session?.user?.id;
 
   useEffect(() => {
-    if (session?.user && !isDemoMode) {
-      checkAdminStatus(session.user.id);
+    if (currentUserId && !isDemoMode) {
+      checkAdminStatus(currentUserId);
       fetchCustomers();
     }
-  }, [session, isDemoMode, checkAdminStatus, fetchCustomers]);
+  }, [currentUserId, isDemoMode, checkAdminStatus, fetchCustomers]);
 
   const handleDemoLogin = () => {
     import('./data/demoData').then(({ DEMO_CUSTOMER }) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
 import { encodeGuestCode } from '../lib/guestCode';
@@ -513,10 +513,25 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     [customer, userId]
   );
 
+  const baseUrlDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleBaseUrlChange = (val: string) => {
     setBaseUrl(val);
     saveBaseUrlForCustomer(customer, val, userId || undefined);
-    saveBaseUrlToCloud(customer, val);
+
+    if (baseUrlDebounceRef.current) {
+      clearTimeout(baseUrlDebounceRef.current);
+    }
+    baseUrlDebounceRef.current = setTimeout(() => {
+      saveBaseUrlToCloud(customer, val);
+    }, 1500);
+  };
+
+  const handleBaseUrlBlur = () => {
+    if (baseUrlDebounceRef.current) {
+      clearTimeout(baseUrlDebounceRef.current);
+    }
+    saveBaseUrlToCloud(customer, baseUrl);
   };
 
   useEffect(() => {
@@ -1064,6 +1079,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             type="text"
             value={baseUrl}
             onChange={(e) => handleBaseUrlChange(e.target.value)}
+            onBlur={handleBaseUrlBlur}
             placeholder="masukkan link undangan anda (namapasangan.joyever.id)"
             className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs font-mono text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
           />
@@ -1504,6 +1520,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                   type="text"
                   value={baseUrl}
                   onChange={(e) => handleBaseUrlChange(e.target.value)}
+                  onBlur={handleBaseUrlBlur}
                   placeholder="masukkan link undangan anda (namapasangan.joyever.id)"
                   className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs font-mono text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                 />
