@@ -378,6 +378,8 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
               <GuestLinksTab
                 key={selectedCustomer.id || selectedCustomer.slug}
                 customer={selectedCustomer}
+                userEmail={session.user.email}
+                userId={session.user.id}
               />
             )}
 

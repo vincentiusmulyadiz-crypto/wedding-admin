@@ -21,6 +21,7 @@ import {
   FileText,
   Sliders,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export interface InvitedGuest {
@@ -32,6 +33,8 @@ export interface InvitedGuest {
 
 interface GuestLinksTabProps {
   customer: Customer;
+  userEmail?: string | null;
+  userId?: string | null;
 }
 
 const DEFAULT_WA_TEMPLATE = `Kepada Yth. {nama},
@@ -55,17 +58,38 @@ export const getBaseUrlPreviewFormat = (cust: Customer): string => {
   return `https://${coupleSlug}.joyever.id`;
 };
 
+// Helper kunci penyimpanan multi-level per akun & customer
+export const getStorageKeys = (cust: Customer, userId?: string): string[] => {
+  const keys: string[] = [];
+  if (cust.id) {
+    keys.push(`guest_records_v2_${cust.id}`);
+  }
+  if (cust.slug) {
+    keys.push(`guest_records_v2_${cust.slug}`);
+  }
+  const ownerId = cust.owner_id || userId;
+  if (ownerId) {
+    if (cust.id) keys.push(`guest_records_v2_owner_${ownerId}_${cust.id}`);
+    if (cust.slug) keys.push(`guest_records_v2_owner_${ownerId}_${cust.slug}`);
+    keys.push(`guest_records_v2_owner_${ownerId}`);
+  }
+  return keys;
+};
+
 // Muat Base URL yang tersimpan khusus untuk akun ini
-export const loadStoredBaseUrl = (cust: Customer): string => {
+export const loadStoredBaseUrl = (cust: Customer, userId?: string): string => {
   try {
-    const fromId = localStorage.getItem(`base_url_${cust.id}`);
-    if (fromId !== null && fromId !== undefined) {
-      return fromId;
-    }
-    if (cust.slug) {
-      const fromSlug = localStorage.getItem(`base_url_${cust.slug}`);
-      if (fromSlug !== null && fromSlug !== undefined) {
-        return fromSlug;
+    const ownerId = cust.owner_id || userId;
+    const candidates = [
+      localStorage.getItem(`base_url_${cust.id}`),
+      cust.slug ? localStorage.getItem(`base_url_${cust.slug}`) : null,
+      ownerId ? localStorage.getItem(`base_url_owner_${ownerId}_${cust.id}`) : null,
+      ownerId && cust.slug ? localStorage.getItem(`base_url_owner_${ownerId}_${cust.slug}`) : null,
+      ownerId ? localStorage.getItem(`base_url_owner_${ownerId}`) : null,
+    ];
+    for (const val of candidates) {
+      if (val !== null && val !== undefined && val.trim() !== '') {
+        return val;
       }
     }
   } catch (e) {
@@ -75,56 +99,71 @@ export const loadStoredBaseUrl = (cust: Customer): string => {
 };
 
 // Simpan Base URL khusus untuk akun ini
-export const saveBaseUrlForCustomer = (cust: Customer, url: string) => {
+export const saveBaseUrlForCustomer = (cust: Customer, url: string, userId?: string) => {
   try {
     localStorage.setItem(`base_url_${cust.id}`, url);
     if (cust.slug) {
       localStorage.setItem(`base_url_${cust.slug}`, url);
+    }
+    const ownerId = cust.owner_id || userId;
+    if (ownerId) {
+      localStorage.setItem(`base_url_owner_${ownerId}_${cust.id}`, url);
+      if (cust.slug) localStorage.setItem(`base_url_owner_${ownerId}_${cust.slug}`, url);
+      localStorage.setItem(`base_url_owner_${ownerId}`, url);
     }
   } catch (e) {
     console.error('Error saving base url:', e);
   }
 };
 
-// Muat daftar tamu yang tersimpan khusus untuk akun ini
-export const loadStoredGuests = (cust: Customer): InvitedGuest[] => {
+// Muat daftar tamu yang tersimpan di browser untuk akun ini
+export const loadStoredGuests = (cust: Customer, userId?: string): InvitedGuest[] => {
   try {
-    const idKey = `guest_records_v2_${cust.id}`;
-    const slugKey = cust.slug ? `guest_records_v2_${cust.slug}` : null;
-    const legacyKey = `guest_names_${cust.id}`;
-    const legacySlugKey = cust.slug ? `guest_names_${cust.slug}` : null;
-
-    const saved = localStorage.getItem(idKey) || (slugKey ? localStorage.getItem(slugKey) : null);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        return parsed;
+    const keys = getStorageKeys(cust, userId);
+    for (const key of keys) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        } catch {
+          // Abaikan json yang korup
+        }
       }
     }
 
     // Cek format nama legasi jika ada
-    const legacy = localStorage.getItem(legacyKey) || (legacySlugKey ? localStorage.getItem(legacySlugKey) : null);
-    if (legacy) {
-      const lines = legacy.split('\n').map((l) => l.trim()).filter(Boolean);
-      if (lines.length > 0) {
-        return lines.map((line, idx) => {
-          let name = line;
-          let phone = '';
-          if (line.includes(',')) {
-            const parts = line.split(',');
-            name = parts[0].trim();
-            phone = parts.slice(1).join(',').trim();
-          } else if (line.includes(' - ')) {
-            const parts = line.split(' - ');
-            name = parts[0].trim();
-            phone = parts[1].trim();
-          }
-          return {
-            id: `legacy-${idx}-${Date.now()}`,
-            name,
-            phone,
-          };
-        });
+    const legacyKeys = [
+      `guest_names_${cust.id}`,
+      cust.slug ? `guest_names_${cust.slug}` : '',
+    ].filter(Boolean);
+
+    for (const legacyKey of legacyKeys) {
+      const legacy = localStorage.getItem(legacyKey);
+      if (legacy) {
+        const lines = legacy.split('\n').map((l) => l.trim()).filter(Boolean);
+        if (lines.length > 0) {
+          return lines.map((line, idx) => {
+            let name = line;
+            let phone = '';
+            if (line.includes(',')) {
+              const parts = line.split(',');
+              name = parts[0].trim();
+              phone = parts.slice(1).join(',').trim();
+            } else if (line.includes(' - ')) {
+              const parts = line.split(' - ');
+              name = parts[0].trim();
+              phone = parts[1].trim();
+            }
+            return {
+              id: `legacy-${idx}-${Date.now()}`,
+              name,
+              phone,
+            };
+          });
+        }
       }
     }
   } catch (e) {
@@ -144,36 +183,227 @@ export const loadStoredGuests = (cust: Customer): InvitedGuest[] => {
   return [];
 };
 
-// Simpan daftar tamu khusus untuk akun ini
-export const saveGuestsForCustomer = (cust: Customer, guestList: InvitedGuest[]) => {
+// Simpan daftar tamu khusus untuk akun ini ke browser
+export const saveGuestsForCustomer = (
+  cust: Customer,
+  guestList: InvitedGuest[],
+  userId?: string
+) => {
   try {
-    const idKey = `guest_records_v2_${cust.id}`;
-    const legacyIdKey = `guest_names_${cust.id}`;
-    localStorage.setItem(idKey, JSON.stringify(guestList));
+    const jsonStr = JSON.stringify(guestList);
     const namesOnly = guestList.map((g) => (g.phone ? `${g.name}, ${g.phone}` : g.name)).join('\n');
-    localStorage.setItem(legacyIdKey, namesOnly);
 
-    if (cust.slug) {
-      localStorage.setItem(`guest_records_v2_${cust.slug}`, JSON.stringify(guestList));
-      localStorage.setItem(`guest_names_${cust.slug}`, namesOnly);
+    const keys = getStorageKeys(cust, userId);
+    for (const key of keys) {
+      localStorage.setItem(key, jsonStr);
     }
+
+    if (cust.id) localStorage.setItem(`guest_names_${cust.id}`, namesOnly);
+    if (cust.slug) localStorage.setItem(`guest_names_${cust.slug}`, namesOnly);
   } catch (e) {
     console.error('Error saving guests:', e);
   }
 };
 
-export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
+// ==============================================================================
+// SINKRONISASI CLOUD KE AKUN SUPABASE PENGGUNA
+// ==============================================================================
+
+// Muat daftar tamu langsung dari akun Supabase
+export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[] | null> => {
+  try {
+    const supabase = getSupabase();
+
+    // 1. Coba baca dari tabel public.guests jika ada
+    try {
+      const { data: dbGuests, error: dbErr } = await supabase
+        .from('guests')
+        .select('id, name, phone, code')
+        .eq('customer_id', cust.id);
+
+      if (!dbErr && dbGuests && dbGuests.length > 0) {
+        return dbGuests.map((g: any) => ({
+          id: g.id || `db-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: g.name,
+          phone: g.phone || '',
+          code: g.code,
+        }));
+      }
+    } catch {
+      // Abaikan jika tabel belum ada
+    }
+
+    // 2. Baca dari Supabase Auth user_metadata (tersimpan di akun pengguna)
+    try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (!userErr && user && user.user_metadata) {
+        const meta = user.user_metadata;
+        const guestRecords = meta.guest_records;
+        if (guestRecords && typeof guestRecords === 'object') {
+          const list = guestRecords[cust.id] || (cust.slug ? guestRecords[cust.slug] : null);
+          if (Array.isArray(list) && list.length > 0) {
+            return list;
+          }
+        }
+        if (Array.isArray(meta.primary_guest_records) && meta.primary_guest_records.length > 0) {
+          return meta.primary_guest_records;
+        }
+      }
+    } catch (metaErr) {
+      console.warn('Could not read user_metadata:', metaErr);
+    }
+  } catch (e) {
+    console.warn('Error loading guests from cloud:', e);
+  }
+  return null;
+};
+
+// Simpan daftar tamu secara permanen ke akun Supabase pengguna
+export const saveGuestsToCloud = async (
+  cust: Customer,
+  guestList: InvitedGuest[]
+): Promise<boolean> => {
+  try {
+    const supabase = getSupabase();
+
+    // 1. Simpan ke Supabase Auth user_metadata
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!userError && user) {
+        const existingMeta = user.user_metadata || {};
+        const existingRecords = existingMeta.guest_records || {};
+
+        const updatedRecords = {
+          ...existingRecords,
+          [cust.id]: guestList,
+          ...(cust.slug ? { [cust.slug]: guestList } : {}),
+        };
+
+        await supabase.auth.updateUser({
+          data: {
+            ...existingMeta,
+            guest_records: updatedRecords,
+            primary_guest_records: guestList,
+            last_guest_sync: new Date().toISOString(),
+          },
+        });
+      }
+    } catch (authErr) {
+      console.warn('Could not update user_metadata:', authErr);
+    }
+
+    // 2. Jika tabel public.guests ada, sinkronkan juga ke tabel database
+    try {
+      await supabase.from('guests').delete().eq('customer_id', cust.id);
+      if (guestList.length > 0) {
+        const rows = guestList.map((g) => ({
+          customer_id: cust.id,
+          name: g.name,
+          phone: g.phone || '',
+          code: g.code || encodeGuestCode(g.name),
+        }));
+        await supabase.from('guests').insert(rows);
+      }
+    } catch {
+      // Abaikan jika tabel public.guests belum dibuat
+    }
+
+    return true;
+  } catch (e) {
+    console.error('Error saving guests to cloud:', e);
+    return false;
+  }
+};
+
+export const loadBaseUrlFromCloud = async (cust: Customer): Promise<string | null> => {
+  try {
+    const supabase = getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.user_metadata?.base_urls) {
+      const urls = user.user_metadata.base_urls;
+      return urls[cust.id] || (cust.slug ? urls[cust.slug] : null) || null;
+    }
+  } catch {}
+  return null;
+};
+
+export const saveBaseUrlToCloud = async (cust: Customer, url: string) => {
+  try {
+    const supabase = getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const meta = user.user_metadata || {};
+      const baseUrls = meta.base_urls || {};
+      await supabase.auth.updateUser({
+        data: {
+          ...meta,
+          base_urls: {
+            ...baseUrls,
+            [cust.id]: url,
+            ...(cust.slug ? { [cust.slug]: url } : {}),
+          },
+        },
+      });
+    }
+  } catch {}
+};
+
+export const loadWaTemplateFromCloud = async (cust: Customer): Promise<string | null> => {
+  try {
+    const supabase = getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.user_metadata?.wa_templates) {
+      const templates = user.user_metadata.wa_templates;
+      return templates[cust.id] || (cust.slug ? templates[cust.slug] : null) || null;
+    }
+  } catch {}
+  return null;
+};
+
+export const saveWaTemplateToCloud = async (cust: Customer, template: string) => {
+  try {
+    const supabase = getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const meta = user.user_metadata || {};
+      const templates = meta.wa_templates || {};
+      await supabase.auth.updateUser({
+        data: {
+          ...meta,
+          wa_templates: {
+            ...templates,
+            [cust.id]: template,
+            ...(cust.slug ? { [cust.slug]: template } : {}),
+          },
+        },
+      });
+    }
+  } catch {}
+};
+
+export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
+  customer,
+  userEmail,
+  userId,
+}) => {
   const codesStorageKey = `guest_codes_${customer.id}`;
   const templateStorageKey = `wa_template_${customer.id}`;
   const linkFormatStorageKey = `link_format_${customer.id}`;
 
   const previewBaseUrl = getBaseUrlPreviewFormat(customer);
 
+  // Status sinkronisasi ke akun Supabase Cloud
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
+
   // Initial guest list loader tersimpan per akun
-  const [guests, setGuests] = useState<InvitedGuest[]>(() => loadStoredGuests(customer));
+  const [guests, setGuests] = useState<InvitedGuest[]>(() =>
+    loadStoredGuests(customer, userId || undefined)
+  );
 
   // Base URL text box
-  const [baseUrl, setBaseUrl] = useState<string>(() => loadStoredBaseUrl(customer));
+  const [baseUrl, setBaseUrl] = useState<string>(() =>
+    loadStoredBaseUrl(customer, userId || undefined)
+  );
 
   const [linkFormat, setLinkFormat] = useState<'random' | 'named'>(() => {
     return (localStorage.getItem(linkFormatStorageKey) as 'random' | 'named') || 'random';
@@ -212,26 +442,82 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
   const [loadingRsvps, setLoadingRsvps] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Sinkronisasi ulang data saat customer berubah
+  // Sinkronisasi data lokal & cloud secara otomatis saat customer dipilih/berubah
   useEffect(() => {
-    setGuests(loadStoredGuests(customer));
-    setBaseUrl(loadStoredBaseUrl(customer));
-    setWaTemplate(localStorage.getItem(`wa_template_${customer.id}`) || DEFAULT_WA_TEMPLATE);
-  }, [customer.id, customer.slug]);
+    let isCancelled = false;
 
-  // Sync Guests to LocalStorage khusus akun ini
-  useEffect(() => {
-    saveGuestsForCustomer(customer, guests);
-  }, [customer, guests]);
+    // 1. Muat data lokal seketika dari cache browser
+    const localGuests = loadStoredGuests(customer, userId || undefined);
+    setGuests(localGuests);
+
+    const localUrl = loadStoredBaseUrl(customer, userId || undefined);
+    setBaseUrl(localUrl);
+
+    const localTemplate =
+      localStorage.getItem(`wa_template_${customer.id}`) || DEFAULT_WA_TEMPLATE;
+    setWaTemplate(localTemplate);
+
+    // 2. Sinkronkan dengan Supabase Cloud di akun user
+    const syncFromCloud = async () => {
+      try {
+        const cloudGuests = await loadGuestsFromCloud(customer);
+        if (isCancelled) return;
+
+        if (cloudGuests && cloudGuests.length > 0) {
+          setGuests(cloudGuests);
+          saveGuestsForCustomer(customer, cloudGuests, userId || undefined);
+          setSyncStatus('synced');
+        } else if (localGuests.length > 0 && !isSampleGuestList(localGuests)) {
+          // Ada data lokal tapi di cloud belum ada, upload ke akun user
+          setSyncStatus('saving');
+          const ok = await saveGuestsToCloud(customer, localGuests);
+          if (!isCancelled) setSyncStatus(ok ? 'synced' : 'offline');
+        }
+
+        const cloudUrl = await loadBaseUrlFromCloud(customer);
+        if (!isCancelled && cloudUrl) {
+          setBaseUrl(cloudUrl);
+          saveBaseUrlForCustomer(customer, cloudUrl, userId || undefined);
+        } else if (localUrl) {
+          await saveBaseUrlToCloud(customer, localUrl);
+        }
+
+        const cloudTemplate = await loadWaTemplateFromCloud(customer);
+        if (!isCancelled && cloudTemplate) {
+          setWaTemplate(cloudTemplate);
+          localStorage.setItem(`wa_template_${customer.id}`, cloudTemplate);
+        } else if (localTemplate && localTemplate !== DEFAULT_WA_TEMPLATE) {
+          await saveWaTemplateToCloud(customer, localTemplate);
+        }
+      } catch (err) {
+        console.warn('Sync cloud error:', err);
+      }
+    };
+
+    syncFromCloud();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [customer.id, customer.slug, customer.owner_id, userId]);
+
+  // Fungsi terpusat: Perbarui tamu di state, localStorage, dan akun Supabase Cloud
+  const updateAndPersistGuests = useCallback(
+    async (nextList: InvitedGuest[]) => {
+      setGuests(nextList);
+      saveGuestsForCustomer(customer, nextList, userId || undefined);
+      setSyncStatus('saving');
+      const ok = await saveGuestsToCloud(customer, nextList);
+      setSyncStatus(ok ? 'synced' : 'offline');
+    },
+    [customer, userId]
+  );
 
   const handleBaseUrlChange = (val: string) => {
     setBaseUrl(val);
-    saveBaseUrlForCustomer(customer, val);
+    saveBaseUrlForCustomer(customer, val, userId || undefined);
+    saveBaseUrlToCloud(customer, val);
   };
-
-  useEffect(() => {
-    localStorage.setItem(templateStorageKey, waTemplate);
-  }, [templateStorageKey, waTemplate]);
 
   useEffect(() => {
     localStorage.setItem(linkFormatStorageKey, linkFormat);
@@ -395,8 +681,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
     };
 
     const nextList = [newGuest, ...guests];
-    setGuests(nextList);
-    saveGuestsForCustomer(customer, nextList);
+    updateAndPersistGuests(nextList);
     setQuickName('');
     setQuickPhone('');
     showToast(`Tamu "${trimmed}" berhasil ditambahkan!`, 'success');
@@ -445,16 +730,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
       showToast(`Tamu "${trimmedName}" berhasil ditambahkan`, 'success');
     }
 
-    setGuests(nextList);
-    saveGuestsForCustomer(customer, nextList);
+    updateAndPersistGuests(nextList);
     setShowAddModal(false);
   };
 
   const handleDeleteGuest = (id: string, name: string) => {
     if (window.confirm(`Hapus "${name}" dari daftar tamu?`)) {
       const nextList = guests.filter((g) => g.id !== id);
-      setGuests(nextList);
-      saveGuestsForCustomer(customer, nextList);
+      updateAndPersistGuests(nextList);
       showToast(`Tamu "${name}" telah dihapus`, 'info');
     }
   };
@@ -468,8 +751,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
         }?`
       )
     ) {
-      setGuests([]);
-      saveGuestsForCustomer(customer, []);
+      updateAndPersistGuests([]);
       showToast('Seluruh daftar tamu telah dikosongkan', 'info');
     }
   };
@@ -523,8 +805,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
     const shouldReplace = replaceExisting || (guests.length > 0 && isSampleGuestList(guests));
     const nextList = shouldReplace ? imported : [...guests, ...imported];
 
-    setGuests(nextList);
-    saveGuestsForCustomer(customer, nextList);
+    updateAndPersistGuests(nextList);
     setBatchText('');
     setShowBatchModal(false);
     showToast(`Berhasil menambahkan ${imported.length} tamu!`, 'success');
@@ -539,9 +820,30 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
             <MessageCircle className="w-6 h-6 text-emerald-600" />
             <span>Kirim Undangan via WhatsApp</span>
           </h1>
-          <p className="text-xs text-[#52717b] mt-0.5">
-            Alur praktis 3 langkah untuk mengundang tamu secara personal
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <p className="text-xs text-[#52717b]">
+              Alur praktis 3 langkah untuk mengundang tamu secara personal
+            </p>
+            <span className="text-[#a5b9be]">•</span>
+            {syncStatus === 'saving' && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-teal-700 font-medium bg-teal-50 border border-teal-200/60 px-2 py-0.5 rounded-full">
+                <RotateCw className="w-3 h-3 animate-spin text-teal-600" />
+                <span>Menyimpan ke akun...</span>
+              </span>
+            )}
+            {syncStatus === 'synced' && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 rounded-full" title="Daftar tamu tersimpan aman di akun Anda (bahkan saat logout & login lagi)">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Tersimpan di akun {userEmail ? `(${userEmail})` : ''}</span>
+              </span>
+            )}
+            {syncStatus === 'offline' && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-700 font-medium bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                <span>Tersimpan di browser (offline)</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Aksi Sekunder: Template Pesan, Salin Semua, Pengaturan Tautan */}
@@ -1161,6 +1463,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({ customer }) => {
               <button
                 type="button"
                 onClick={() => {
+                  localStorage.setItem(templateStorageKey, waTemplate);
+                  saveWaTemplateToCloud(customer, waTemplate);
                   setShowTemplateModal(false);
                   showToast('Template pesan WhatsApp disimpan!', 'success');
                 }}

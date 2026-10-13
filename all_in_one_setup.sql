@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.guests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    phone TEXT DEFAULT '',
     code TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(customer_id, code)
