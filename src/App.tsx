@@ -142,11 +142,12 @@ export function App() {
       setCustomers(list);
 
       if (list.length > 0) {
+        const ownCustomer = list.find((c) => c.owner_id === session.user.id);
         setSelectedCustomer((prev) => {
           if (prev && list.some((c) => c.id === prev.id)) {
-            return list.find((c) => c.id === prev.id) || list[0];
+            return list.find((c) => c.id === prev.id) || ownCustomer || list[0];
           }
-          return list[0];
+          return ownCustomer || list[0];
         });
       } else {
         setSelectedCustomer(null);
@@ -305,7 +306,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    const sql = `INSERT INTO public.admins (user_id) VALUES ('${session.user.id}') ON CONFLICT (user_id) DO NOTHING;\nINSERT INTO public.customers (slug, couple_names, event_date, owner_id) VALUES ('pernikahan-saya', 'Yana & Edo', '2026-10-24', '${session.user.id}') ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`;
+                    const sql = `INSERT INTO public.customers (slug, couple_names, event_date, owner_id) VALUES ('pernikahan-saya', 'Nama Pasangan', '2026-10-24', '${session.user.id}') ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`;
                     navigator.clipboard.writeText(sql);
                     setCopiedSql(true);
                     setTimeout(() => setCopiedSql(false), 2000);
@@ -319,9 +320,8 @@ export function App() {
                 </button>
               </div>
               <pre className="font-mono text-[10px] text-[#0e2c34] bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be] overflow-x-auto whitespace-pre-wrap font-semibold">
-{`INSERT INTO public.admins (user_id) VALUES ('${session.user.id}') ON CONFLICT (user_id) DO NOTHING;
-INSERT INTO public.customers (slug, couple_names, event_date, owner_id) 
-VALUES ('pernikahan-saya', 'Yana & Edo', '2026-10-24', '${session.user.id}')
+{`INSERT INTO public.customers (slug, couple_names, event_date, owner_id) 
+VALUES ('pernikahan-saya', 'Nama Pasangan', '2026-10-24', '${session.user.id}')
 ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
               </pre>
             </div>

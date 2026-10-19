@@ -58,113 +58,144 @@ export const getBaseUrlPreviewFormat = (cust: Customer): string => {
   return `https://${coupleSlug}.joyever.id`;
 };
 
-// Helper kunci penyimpanan multi-level per akun & customer
-export const getStorageKeys = (cust: Customer, userId?: string): string[] => {
-  const keys: string[] = [];
-  if (cust.id) {
-    keys.push(`guest_records_v2_${cust.id}`);
-  }
-  if (cust.slug) {
-    keys.push(`guest_records_v2_${cust.slug}`);
-  }
-  const ownerId = cust.owner_id || userId;
-  if (ownerId) {
-    if (cust.id) keys.push(`guest_records_v2_owner_${ownerId}_${cust.id}`);
-    if (cust.slug) keys.push(`guest_records_v2_owner_${ownerId}_${cust.slug}`);
-    keys.push(`guest_records_v2_owner_${ownerId}`);
-  }
-  return keys;
+// Identifikasi unik per undangan/dashboard pengantin
+export const getCustomerStorageId = (cust: Customer): string => {
+  return cust.id || cust.slug || 'unknown';
 };
 
-// Muat Base URL yang tersimpan khusus untuk akun ini
-export const loadStoredBaseUrl = (cust: Customer, userId?: string): string => {
+// Cek apakah customer ini adalah dashboard Alfredo & Yana (pemilik asli data tamu sebelum isolasi v3)
+const isAlfredoYanaCustomer = (cust: Customer): boolean => {
+  const s = (cust.slug || '').toLowerCase();
+  const n = (cust.couple_names || '').toLowerCase();
+  return (
+    (s.includes('alfredo') && s.includes('yana')) ||
+    (n.includes('alfredo') && n.includes('yana')) ||
+    s === 'pernikahan-saya'
+  );
+};
+
+// Kunci penyimpanan lokal yang terisolasi penuh per ID undangan (tanpa key global owner)
+export const getGuestStorageKey = (cust: Customer): string =>
+  `guest_records_v3_${getCustomerStorageId(cust)}`;
+
+export const getBaseUrlStorageKey = (cust: Customer): string =>
+  `base_url_v3_${getCustomerStorageId(cust)}`;
+
+export const getWaTemplateStorageKey = (cust: Customer): string =>
+  `wa_template_v3_${getCustomerStorageId(cust)}`;
+
+// Bersihkan kunci-kunci v2 lama yang bocor di localStorage
+const purgeLegacyLeakedLocalStorage = (cust: Customer, userId?: string) => {
   try {
     const ownerId = cust.owner_id || userId;
-    const candidates = [
-      localStorage.getItem(`base_url_${cust.id}`),
-      cust.slug ? localStorage.getItem(`base_url_${cust.slug}`) : null,
-      ownerId ? localStorage.getItem(`base_url_owner_${ownerId}_${cust.id}`) : null,
-      ownerId && cust.slug ? localStorage.getItem(`base_url_owner_${ownerId}_${cust.slug}`) : null,
-      ownerId ? localStorage.getItem(`base_url_owner_${ownerId}`) : null,
-    ];
-    for (const val of candidates) {
-      if (val !== null && val !== undefined && val.trim() !== '') {
-        return val;
+    if (ownerId) {
+      localStorage.removeItem(`guest_records_v2_owner_${ownerId}`);
+      localStorage.removeItem(`base_url_owner_${ownerId}`);
+    }
+    if (!isAlfredoYanaCustomer(cust)) {
+      if (cust.id) {
+        localStorage.removeItem(`guest_records_v2_${cust.id}`);
+        localStorage.removeItem(`guest_names_${cust.id}`);
+      }
+      if (cust.slug) {
+        localStorage.removeItem(`guest_records_v2_${cust.slug}`);
+        localStorage.removeItem(`guest_names_${cust.slug}`);
+      }
+      if (ownerId && cust.id) {
+        localStorage.removeItem(`guest_records_v2_owner_${ownerId}_${cust.id}`);
+      }
+      if (ownerId && cust.slug) {
+        localStorage.removeItem(`guest_records_v2_owner_${ownerId}_${cust.slug}`);
       }
     }
+  } catch {
+    // Abaikan error storage
+  }
+};
+
+// Muat Base URL yang tersimpan khusus untuk dashboard pengantin ini saja
+export const loadStoredBaseUrl = (cust: Customer, userId?: string): string => {
+  try {
+    const key = getBaseUrlStorageKey(cust);
+    const savedV3 = localStorage.getItem(key);
+    if (savedV3 !== null) {
+      return savedV3;
+    }
+
+    // Migrasi v2 hanya jika milik Alfredo & Yana atau URL memang mengandung slug pasangan ini
+    const oldVal =
+      localStorage.getItem(`base_url_${cust.id}`) ||
+      (cust.slug ? localStorage.getItem(`base_url_${cust.slug}`) : null);
+
+    if (oldVal && oldVal.trim() !== '') {
+      const lowerUrl = oldVal.toLowerCase();
+      const slugMatch = cust.slug && lowerUrl.includes(cust.slug.toLowerCase());
+      if (isAlfredoYanaCustomer(cust) || slugMatch) {
+        localStorage.setItem(key, oldVal);
+        return oldVal;
+      }
+    }
+
+    purgeLegacyLeakedLocalStorage(cust, userId);
   } catch (e) {
     console.error('Error loading base url:', e);
   }
   return '';
 };
 
-// Simpan Base URL khusus untuk akun ini
-export const saveBaseUrlForCustomer = (cust: Customer, url: string, userId?: string) => {
+// Simpan Base URL khusus untuk dashboard pengantin ini saja
+export const saveBaseUrlForCustomer = (cust: Customer, url: string, _userId?: string) => {
   try {
-    localStorage.setItem(`base_url_${cust.id}`, url);
-    if (cust.slug) {
-      localStorage.setItem(`base_url_${cust.slug}`, url);
-    }
-    const ownerId = cust.owner_id || userId;
-    if (ownerId) {
-      localStorage.setItem(`base_url_owner_${ownerId}_${cust.id}`, url);
-      if (cust.slug) localStorage.setItem(`base_url_owner_${ownerId}_${cust.slug}`, url);
-      localStorage.setItem(`base_url_owner_${ownerId}`, url);
-    }
+    localStorage.setItem(getBaseUrlStorageKey(cust), url);
   } catch (e) {
     console.error('Error saving base url:', e);
   }
 };
 
-// Muat daftar tamu yang tersimpan di browser untuk akun ini
+// Muat daftar tamu yang tersimpan di browser khusus untuk dashboard pengantin ini saja
 export const loadStoredGuests = (cust: Customer, userId?: string): InvitedGuest[] => {
   try {
-    const keys = getStorageKeys(cust, userId);
-    for (const key of keys) {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        } catch {
-          // Abaikan json yang korup
+    const v3Key = getGuestStorageKey(cust);
+    const savedV3 = localStorage.getItem(v3Key);
+    if (savedV3 !== null) {
+      try {
+        const parsed = JSON.parse(savedV3);
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
+      } catch {
+        // Abaikan json yang korup
       }
     }
 
-    // Cek format nama legasi jika ada
-    const legacyKeys = [
-      `guest_names_${cust.id}`,
-      cust.slug ? `guest_names_${cust.slug}` : '',
-    ].filter(Boolean);
+    // Migrasi data lama v2 HANYA untuk dashboard Alfredo & Yana
+    if (isAlfredoYanaCustomer(cust)) {
+      const ownerId = cust.owner_id || userId;
+      const v2Candidates = [
+        cust.id ? `guest_records_v2_${cust.id}` : '',
+        cust.slug ? `guest_records_v2_${cust.slug}` : '',
+        ownerId && cust.id ? `guest_records_v2_owner_${ownerId}_${cust.id}` : '',
+        ownerId && cust.slug ? `guest_records_v2_owner_${ownerId}_${cust.slug}` : '',
+        ownerId ? `guest_records_v2_owner_${ownerId}` : '',
+      ].filter(Boolean);
 
-    for (const legacyKey of legacyKeys) {
-      const legacy = localStorage.getItem(legacyKey);
-      if (legacy) {
-        const lines = legacy.split('\n').map((l) => l.trim()).filter(Boolean);
-        if (lines.length > 0) {
-          return lines.map((line, idx) => {
-            let name = line;
-            let phone = '';
-            if (line.includes(',')) {
-              const parts = line.split(',');
-              name = parts[0].trim();
-              phone = parts.slice(1).join(',').trim();
-            } else if (line.includes(' - ')) {
-              const parts = line.split(' - ');
-              name = parts[0].trim();
-              phone = parts[1].trim();
+      for (const k of v2Candidates) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              localStorage.setItem(v3Key, JSON.stringify(parsed));
+              return parsed;
             }
-            return {
-              id: `legacy-${idx}-${Date.now()}`,
-              name,
-              phone,
-            };
-          });
+          } catch {
+            // Abaikan
+          }
         }
       }
+    } else {
+      // Untuk semua akun/dashboard pengantin lain, bersihkan bocoran data v2
+      purgeLegacyLeakedLocalStorage(cust, userId);
     }
   } catch (e) {
     console.error('Error loading guests:', e);
@@ -183,38 +214,74 @@ export const loadStoredGuests = (cust: Customer, userId?: string): InvitedGuest[
   return [];
 };
 
-// Simpan daftar tamu khusus untuk akun ini ke browser
+// Simpan daftar tamu khusus untuk dashboard pengantin ini saja ke browser
 export const saveGuestsForCustomer = (
   cust: Customer,
   guestList: InvitedGuest[],
-  userId?: string
+  _userId?: string
 ) => {
   try {
     const jsonStr = JSON.stringify(guestList);
-    const namesOnly = guestList.map((g) => (g.phone ? `${g.name}, ${g.phone}` : g.name)).join('\n');
-
-    const keys = getStorageKeys(cust, userId);
-    for (const key of keys) {
-      localStorage.setItem(key, jsonStr);
-    }
-
-    if (cust.id) localStorage.setItem(`guest_names_${cust.id}`, namesOnly);
-    if (cust.slug) localStorage.setItem(`guest_names_${cust.slug}`, namesOnly);
+    localStorage.setItem(getGuestStorageKey(cust), jsonStr);
   } catch (e) {
     console.error('Error saving guests:', e);
   }
 };
 
 // ==============================================================================
-// SINKRONISASI CLOUD KE AKUN SUPABASE PENGGUNA
+// SINKRONISASI CLOUD TERISOLASI PER CUSTOMER ID (V3)
 // ==============================================================================
 
-// Muat daftar tamu langsung dari akun Supabase
+// Muat daftar tamu langsung dari cloud khusus untuk customer.id ini saja
 export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[] | null> => {
   try {
     const supabase = getSupabase();
+    const custId = getCustomerStorageId(cust);
 
-    // 1. Coba baca dari tabel public.guests jika ada
+    // 1. Baca dari Supabase Auth user_metadata.guest_records_v3[cust.id] terlebih dahulu
+    try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (!userErr && user && user.user_metadata) {
+        const meta = user.user_metadata;
+        const guestRecordsV3 = meta.guest_records_v3;
+
+        if (
+          guestRecordsV3 &&
+          typeof guestRecordsV3 === 'object' &&
+          Object.prototype.hasOwnProperty.call(guestRecordsV3, custId)
+        ) {
+          const list = guestRecordsV3[custId];
+          if (Array.isArray(list)) {
+            return list;
+          }
+        }
+
+        // Jika belum ada di guest_records_v3:
+        // Migrasi satu kali dari v2 / tabel HANYA jika ini dashboard Alfredo & Yana
+        if (isAlfredoYanaCustomer(cust)) {
+          const legacyRecords = meta.guest_records;
+          const legacyList =
+            (legacyRecords && typeof legacyRecords === 'object'
+              ? legacyRecords[cust.id] || (cust.slug ? legacyRecords[cust.slug] : null)
+              : null) ||
+            (Array.isArray(meta.primary_guest_records) ? meta.primary_guest_records : null);
+
+          if (Array.isArray(legacyList) && legacyList.length > 0) {
+            await saveGuestsToCloud(cust, legacyList);
+            return legacyList;
+          }
+        } else {
+          // Untuk dashboard pengantin selain Alfredo & Yana yang belum terinisialisasi di v3,
+          // inisialisasi bersih ke array kosong [] agar bocoran dari v2 / tabel lama langsung terhapus
+          await saveGuestsToCloud(cust, []);
+          return [];
+        }
+      }
+    } catch (metaErr) {
+      console.warn('Could not read user_metadata:', metaErr);
+    }
+
+    // 2. Fallback baca dari tabel public.guests (terfilter ketat berdasarkan customer_id)
     try {
       const { data: dbGuests, error: dbErr } = await supabase
         .from('guests')
@@ -232,58 +299,41 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
     } catch {
       // Abaikan jika tabel belum ada
     }
-
-    // 2. Baca dari Supabase Auth user_metadata (tersimpan di akun pengguna)
-    try {
-      const { data: { user }, error: userErr } = await supabase.auth.getUser();
-      if (!userErr && user && user.user_metadata) {
-        const meta = user.user_metadata;
-        const guestRecords = meta.guest_records;
-        if (guestRecords && typeof guestRecords === 'object') {
-          const list = guestRecords[cust.id] || (cust.slug ? guestRecords[cust.slug] : null);
-          if (Array.isArray(list) && list.length > 0) {
-            return list;
-          }
-        }
-        if (Array.isArray(meta.primary_guest_records) && meta.primary_guest_records.length > 0) {
-          return meta.primary_guest_records;
-        }
-      }
-    } catch (metaErr) {
-      console.warn('Could not read user_metadata:', metaErr);
-    }
   } catch (e) {
     console.warn('Error loading guests from cloud:', e);
   }
   return null;
 };
 
-// Simpan daftar tamu secara permanen ke akun Supabase pengguna
+// Simpan daftar tamu secara permanen khusus untuk customer.id ini saja
 export const saveGuestsToCloud = async (
   cust: Customer,
   guestList: InvitedGuest[]
 ): Promise<boolean> => {
   try {
     const supabase = getSupabase();
+    const custId = getCustomerStorageId(cust);
 
-    // 1. Simpan ke Supabase Auth user_metadata
+    // 1. Simpan ke Supabase Auth user_metadata.guest_records_v3[cust.id] (tanpa primary_guest_records global)
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (!userError && user) {
         const existingMeta = user.user_metadata || {};
-        const existingRecords = existingMeta.guest_records || {};
+        const existingRecordsV3 =
+          existingMeta.guest_records_v3 && typeof existingMeta.guest_records_v3 === 'object'
+            ? existingMeta.guest_records_v3
+            : {};
 
-        const updatedRecords = {
-          ...existingRecords,
-          [cust.id]: guestList,
-          ...(cust.slug ? { [cust.slug]: guestList } : {}),
+        const updatedRecordsV3 = {
+          ...existingRecordsV3,
+          [custId]: guestList,
         };
 
         await supabase.auth.updateUser({
           data: {
             ...existingMeta,
-            guest_records: updatedRecords,
-            primary_guest_records: guestList,
+            guest_records_v3: updatedRecordsV3,
+            primary_guest_records: null,
             last_guest_sync: new Date().toISOString(),
           },
         });
@@ -292,7 +342,7 @@ export const saveGuestsToCloud = async (
       console.warn('Could not update user_metadata:', authErr);
     }
 
-    // 2. Jika tabel public.guests ada, sinkronkan juga ke tabel database
+    // 2. Jika tabel public.guests ada, sinkronkan juga ke tabel database khusus customer_id ini
     try {
       await supabase.from('guests').delete().eq('customer_id', cust.id);
       if (guestList.length > 0) {
@@ -318,10 +368,29 @@ export const saveGuestsToCloud = async (
 export const loadBaseUrlFromCloud = async (cust: Customer): Promise<string | null> => {
   try {
     const supabase = getSupabase();
+    const custId = getCustomerStorageId(cust);
     const { data: { user } } = await supabase.auth.getUser();
-    if (user?.user_metadata?.base_urls) {
-      const urls = user.user_metadata.base_urls;
-      return urls[cust.id] || (cust.slug ? urls[cust.slug] : null) || null;
+    const meta = user?.user_metadata;
+    if (!meta) return null;
+
+    if (
+      meta.base_urls_v3 &&
+      typeof meta.base_urls_v3 === 'object' &&
+      typeof meta.base_urls_v3[custId] === 'string'
+    ) {
+      return meta.base_urls_v3[custId];
+    }
+
+    // Migrasi v2 hanya jika milik Alfredo & Yana atau URL sesuai dengan slug pasangan ini
+    if (meta.base_urls && typeof meta.base_urls === 'object') {
+      const oldUrl = meta.base_urls[cust.id] || (cust.slug ? meta.base_urls[cust.slug] : null);
+      if (typeof oldUrl === 'string' && oldUrl.trim() !== '') {
+        const slugMatch = cust.slug && oldUrl.toLowerCase().includes(cust.slug.toLowerCase());
+        if (isAlfredoYanaCustomer(cust) || slugMatch) {
+          await saveBaseUrlToCloud(cust, oldUrl);
+          return oldUrl;
+        }
+      }
     }
   } catch {}
   return null;
@@ -330,17 +399,18 @@ export const loadBaseUrlFromCloud = async (cust: Customer): Promise<string | nul
 export const saveBaseUrlToCloud = async (cust: Customer, url: string) => {
   try {
     const supabase = getSupabase();
+    const custId = getCustomerStorageId(cust);
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const meta = user.user_metadata || {};
-      const baseUrls = meta.base_urls || {};
+      const baseUrlsV3 =
+        meta.base_urls_v3 && typeof meta.base_urls_v3 === 'object' ? meta.base_urls_v3 : {};
       await supabase.auth.updateUser({
         data: {
           ...meta,
-          base_urls: {
-            ...baseUrls,
-            [cust.id]: url,
-            ...(cust.slug ? { [cust.slug]: url } : {}),
+          base_urls_v3: {
+            ...baseUrlsV3,
+            [custId]: url,
           },
         },
       });
@@ -351,10 +421,11 @@ export const saveBaseUrlToCloud = async (cust: Customer, url: string) => {
 export const loadWaTemplateFromCloud = async (cust: Customer): Promise<string | null> => {
   try {
     const supabase = getSupabase();
+    const custId = getCustomerStorageId(cust);
     const { data: { user } } = await supabase.auth.getUser();
-    if (user?.user_metadata?.wa_templates) {
-      const templates = user.user_metadata.wa_templates;
-      return templates[cust.id] || (cust.slug ? templates[cust.slug] : null) || null;
+    const meta = user?.user_metadata;
+    if (meta?.wa_templates_v3 && typeof meta.wa_templates_v3[custId] === 'string') {
+      return meta.wa_templates_v3[custId];
     }
   } catch {}
   return null;
@@ -363,17 +434,20 @@ export const loadWaTemplateFromCloud = async (cust: Customer): Promise<string | 
 export const saveWaTemplateToCloud = async (cust: Customer, template: string) => {
   try {
     const supabase = getSupabase();
+    const custId = getCustomerStorageId(cust);
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const meta = user.user_metadata || {};
-      const templates = meta.wa_templates || {};
+      const templatesV3 =
+        meta.wa_templates_v3 && typeof meta.wa_templates_v3 === 'object'
+          ? meta.wa_templates_v3
+          : {};
       await supabase.auth.updateUser({
         data: {
           ...meta,
-          wa_templates: {
-            ...templates,
-            [cust.id]: template,
-            ...(cust.slug ? { [cust.slug]: template } : {}),
+          wa_templates_v3: {
+            ...templatesV3,
+            [custId]: template,
           },
         },
       });
@@ -387,7 +461,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   userId,
 }) => {
   const codesStorageKey = `guest_codes_${customer.id}`;
-  const templateStorageKey = `wa_template_${customer.id}`;
+  const templateStorageKey = getWaTemplateStorageKey(customer);
   const linkFormatStorageKey = `link_format_${customer.id}`;
 
   const previewBaseUrl = getBaseUrlPreviewFormat(customer);
@@ -395,7 +469,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Status sinkronisasi ke akun Supabase Cloud
   const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
 
-  // Initial guest list loader tersimpan per akun
+  // Initial guest list loader tersimpan khusus per customer.id
   const [guests, setGuests] = useState<InvitedGuest[]>(() =>
     loadStoredGuests(customer, userId || undefined)
   );
@@ -445,8 +519,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Sinkronisasi data lokal & cloud secara otomatis saat customer dipilih/berubah
   useEffect(() => {
     let isCancelled = false;
+    const currentTemplateKey = getWaTemplateStorageKey(customer);
 
-    // 1. Muat data lokal seketika dari cache browser
+    // 1. Muat data lokal seketika dari cache browser (terisolasi per customer.id)
     const localGuests = loadStoredGuests(customer, userId || undefined);
     setGuests(localGuests);
 
@@ -454,10 +529,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setBaseUrl(localUrl);
 
     const localTemplate =
-      localStorage.getItem(`wa_template_${customer.id}`) || DEFAULT_WA_TEMPLATE;
+      localStorage.getItem(currentTemplateKey) || DEFAULT_WA_TEMPLATE;
     setWaTemplate(localTemplate);
 
-    // 2. Sinkronkan dengan Supabase Cloud di akun user
+    // 2. Sinkronkan dengan Supabase Cloud khusus untuk customer.id ini
     const syncFromCloud = async () => {
       try {
         const cloudGuests = await loadGuestsFromCloud(customer);
@@ -468,10 +543,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           saveGuestsForCustomer(customer, cloudGuests, userId || undefined);
           setSyncStatus('synced');
         } else if (localGuests.length > 0 && !isSampleGuestList(localGuests)) {
-          // Ada data lokal tapi di cloud belum ada, upload ke akun user
+          // Ada data lokal v3 untuk customer ini tapi di cloud belum ada, upload ke cloud
           setSyncStatus('saving');
           const ok = await saveGuestsToCloud(customer, localGuests);
           if (!isCancelled) setSyncStatus(ok ? 'synced' : 'offline');
+        } else if (cloudGuests !== null) {
+          setGuests([]);
+          saveGuestsForCustomer(customer, [], userId || undefined);
+          setSyncStatus('synced');
         }
 
         const cloudUrl = await loadBaseUrlFromCloud(customer);
@@ -485,7 +564,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         const cloudTemplate = await loadWaTemplateFromCloud(customer);
         if (!isCancelled && cloudTemplate) {
           setWaTemplate(cloudTemplate);
-          localStorage.setItem(`wa_template_${customer.id}`, cloudTemplate);
+          localStorage.setItem(currentTemplateKey, cloudTemplate);
         } else if (localTemplate && localTemplate !== DEFAULT_WA_TEMPLATE) {
           await saveWaTemplateToCloud(customer, localTemplate);
         }
