@@ -64,14 +64,92 @@ export const getCustomerStorageId = (cust: Customer): string => {
 };
 
 // Cek apakah customer ini adalah dashboard Alfredo & Yana (pemilik asli data tamu sebelum isolasi v3)
-const isAlfredoYanaCustomer = (cust: Customer): boolean => {
+export const isAlfredoYanaCustomer = (cust: Customer): boolean => {
   const s = (cust.slug || '').toLowerCase();
   const n = (cust.couple_names || '').toLowerCase();
+
+  // Pastikan BUKAN pasangan lain (Indah & Ricky, Dita & Fachrul, Risa & Adi, Herman & Vonny, dll.)
+  if (
+    n.includes('indah') ||
+    n.includes('ricky') ||
+    s.includes('indah') ||
+    s.includes('ricky') ||
+    n.includes('dita') ||
+    n.includes('fachrul') ||
+    s.includes('dita') ||
+    s.includes('fachrul') ||
+    n.includes('risa') ||
+    n.includes('adi') ||
+    s.includes('risa') ||
+    s.includes('adi') ||
+    n.includes('herman') ||
+    n.includes('vonny') ||
+    s.includes('herman') ||
+    s.includes('vonny')
+  ) {
+    return false;
+  }
+
+  // Hanya cocok jika nama/slug memang Alfredo / Yana / Edo
   return (
     (s.includes('alfredo') && s.includes('yana')) ||
     (n.includes('alfredo') && n.includes('yana')) ||
-    s === 'pernikahan-saya'
+    (n.includes('yana') && (n.includes('edo') || n.includes('ojoon'))) ||
+    s === 'alfredo-yana' ||
+    (s === 'pernikahan-saya' && (n.includes('yana') || n.includes('edo') || n.includes('alfredo')))
   );
+};
+
+// Deteksi apakah daftar tamu ini adalah salinan bocoran dari Alfredo & Yana
+const isLeakedAlfredoGuestList = (list: InvitedGuest[], meta?: any): boolean => {
+  if (!Array.isArray(list) || list.length === 0) return false;
+  if (isSampleGuestList(list)) return false;
+
+  // 1. Cek terhadap primary_guest_records di metadata Supabase Auth
+  if (meta) {
+    const primary = Array.isArray(meta.primary_guest_records) ? meta.primary_guest_records : [];
+    if (primary.length > 0) {
+      const primaryNames = new Set(
+        primary.map((g: any) => (g && typeof g.name === 'string' ? g.name.trim().toLowerCase() : '')).filter(Boolean)
+      );
+      const matchCount = list.filter((g) => primaryNames.has((g.name || '').trim().toLowerCase())).length;
+      if (matchCount > 0 && matchCount >= Math.min(3, list.length)) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Cek terhadap legacy keys di browser localStorage
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith('guest_records_v2_owner_') ||
+          key.startsWith('guest_records_v2_user_') ||
+          key.includes('alfredo') ||
+          key.includes('yana'))
+      ) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const legacyNames = new Set(
+                parsed.map((g: any) => (g && typeof g.name === 'string' ? g.name.trim().toLowerCase() : '')).filter(Boolean)
+              );
+              const matchCount = list.filter((g) => legacyNames.has((g.name || '').trim().toLowerCase())).length;
+              if (matchCount > 0 && matchCount >= Math.min(3, list.length)) {
+                return true;
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+
+  return false;
 };
 
 // Kunci penyimpanan lokal yang terisolasi penuh per ID undangan (tanpa key global owner)
@@ -119,6 +197,14 @@ export const loadStoredBaseUrl = (cust: Customer, userId?: string): string => {
     const key = getBaseUrlStorageKey(cust);
     const savedV3 = localStorage.getItem(key);
     if (savedV3 !== null) {
+      // Jika BUKAN Alfredo & Yana tapi URL mengandung alfredo/yana/edo, itu adalah bocoran
+      if (!isAlfredoYanaCustomer(cust)) {
+        const lower = savedV3.toLowerCase();
+        if (lower.includes('alfredo') || lower.includes('yana') || lower.includes('ojoon')) {
+          localStorage.removeItem(key);
+          return '';
+        }
+      }
       return savedV3;
     }
 
@@ -161,6 +247,11 @@ export const loadStoredGuests = (cust: Customer, userId?: string): InvitedGuest[
       try {
         const parsed = JSON.parse(savedV3);
         if (Array.isArray(parsed)) {
+          // Jika BUKAN Alfredo & Yana, periksa apakah list tersimpan adalah bocoran dari Alfredo & Yana
+          if (!isAlfredoYanaCustomer(cust) && isLeakedAlfredoGuestList(parsed)) {
+            localStorage.removeItem(v3Key);
+            return [];
+          }
           return parsed;
         }
       } catch {
@@ -252,6 +343,17 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
         ) {
           const list = guestRecordsV3[custId];
           if (Array.isArray(list)) {
+            // Jika BUKAN Alfredo & Yana, periksa apakah list v3 yang tersimpan adalah bocoran identik
+            if (!isAlfredoYanaCustomer(cust) && isLeakedAlfredoGuestList(list, meta)) {
+              console.warn(
+                `[Auto-Purge] Menghapus data tamu bocoran Alfredo & Yana dari dashboard ${
+                  cust.couple_names || cust.slug || cust.id
+                }`
+              );
+              await saveGuestsToCloud(cust, []);
+              localStorage.removeItem(getGuestStorageKey(cust));
+              return [];
+            }
             return list;
           }
         }
@@ -274,6 +376,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
           // Untuk dashboard pengantin selain Alfredo & Yana yang belum terinisialisasi di v3,
           // inisialisasi bersih ke array kosong [] agar bocoran dari v2 / tabel lama langsung terhapus
           await saveGuestsToCloud(cust, []);
+          localStorage.removeItem(getGuestStorageKey(cust));
           return [];
         }
       }
@@ -378,7 +481,16 @@ export const loadBaseUrlFromCloud = async (cust: Customer): Promise<string | nul
       typeof meta.base_urls_v3 === 'object' &&
       typeof meta.base_urls_v3[custId] === 'string'
     ) {
-      return meta.base_urls_v3[custId];
+      const saved = meta.base_urls_v3[custId];
+      // Jika BUKAN Alfredo & Yana tapi URL mengandung alfredo/yana/edo, bersihkan
+      if (!isAlfredoYanaCustomer(cust)) {
+        const lower = saved.toLowerCase();
+        if (lower.includes('alfredo') || lower.includes('yana') || lower.includes('ojoon')) {
+          await saveBaseUrlToCloud(cust, '');
+          return '';
+        }
+      }
+      return saved;
     }
 
     // Migrasi v2 hanya jika milik Alfredo & Yana atau URL sesuai dengan slug pasangan ini
