@@ -30,6 +30,7 @@ export interface InvitedGuest {
   phone: string;
   code?: string;
   max_guests?: number;
+  events?: string[];
 }
 
 interface GuestLinksTabProps {
@@ -616,11 +617,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickName, setQuickName] = useState<string>('');
   const [quickPhone, setQuickPhone] = useState<string>('');
   const [quickMaxGuests, setQuickMaxGuests] = useState<number>(2);
+  const [quickEventChoice, setQuickEventChoice] = useState<'all' | 'keluarga' | 'teman'>('all');
 
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
   const [inputMaxGuests, setInputMaxGuests] = useState<number>(2);
+  const [modalEvents, setModalEvents] = useState<string[]>(['all']);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Batch Import Text & Options
@@ -805,10 +808,21 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       const quota = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
       const paxParam = `&pax=${quota}`;
 
+      let eventsParam = '';
+      if (guest.events && Array.isArray(guest.events) && guest.events.length > 0) {
+        if (!guest.events.includes('all')) {
+          if (guest.events.includes('keluarga') && !guest.events.includes('teman')) {
+            eventsParam = '&events=keluarga';
+          } else if (guest.events.includes('teman') && !guest.events.includes('keluarga')) {
+            eventsParam = '&events=teman';
+          }
+        }
+      }
+
       const link =
         linkFormat === 'random'
-          ? `${effectiveBase}${separator}c=${code}${paxParam}`
-          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}${paxParam}`;
+          ? `${effectiveBase}${separator}c=${code}${paxParam}${eventsParam}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}${paxParam}${eventsParam}`;
 
       const lowerName = guest.name.toLowerCase();
       const lowerCode = code.toLowerCase();
@@ -820,6 +834,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         link,
         isRsvped,
         max_guests: quota,
+        events: guest.events || ['all'],
       };
     });
   }, [guests, baseUrl, previewBaseUrl, existingRsvps, linkFormat, codesStorageKey]);
@@ -896,6 +911,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       name: trimmed,
       phone: quickPhone.trim(),
       max_guests: quickMaxGuests,
+      events: quickEventChoice === 'all' ? ['all'] : [quickEventChoice],
     };
 
     const nextList = [newGuest, ...guests];
@@ -903,7 +919,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setQuickName('');
     setQuickPhone('');
     setQuickMaxGuests(2);
-    showToast(`Tamu "${trimmed}" (Jatah: ${quickMaxGuests} Tamu) berhasil ditambahkan!`, 'success');
+    setQuickEventChoice('all');
+    const eventLabel =
+      quickEventChoice === 'all'
+        ? 'Semua Acara (Default)'
+        : quickEventChoice === 'keluarga'
+        ? 'Sesi Keluarga'
+        : 'Sesi Teman';
+    showToast(`Tamu "${trimmed}" (${quickMaxGuests} Tamu • ${eventLabel}) berhasil ditambahkan!`, 'success');
   };
 
   // Add / Edit Handlers for modal
@@ -911,6 +934,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setInputName('');
     setInputPhone('');
     setInputMaxGuests(2);
+    setModalEvents(['all']);
     setFormError(null);
     setEditingGuest(null);
     setShowAddModal(true);
@@ -921,6 +945,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setInputName(guest.name);
     setInputPhone(guest.phone);
     setInputMaxGuests(guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2);
+    setModalEvents(guest.events && guest.events.length > 0 ? guest.events : ['all']);
     setFormError(null);
     setShowAddModal(true);
   };
@@ -937,7 +962,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     if (editingGuest) {
       nextList = guests.map((g) =>
         g.id === editingGuest.id
-          ? { ...g, name: trimmedName, phone: inputPhone.trim(), max_guests: inputMaxGuests }
+          ? {
+              ...g,
+              name: trimmedName,
+              phone: inputPhone.trim(),
+              max_guests: inputMaxGuests,
+              events: modalEvents,
+            }
           : g
       );
       showToast(`Data "${trimmedName}" berhasil diperbarui`, 'success');
@@ -947,6 +978,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         name: trimmedName,
         phone: inputPhone.trim(),
         max_guests: inputMaxGuests,
+        events: modalEvents,
       };
       nextList = [newGuest, ...guests];
       showToast(`Tamu "${trimmedName}" berhasil ditambahkan`, 'success');
@@ -1199,7 +1231,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
         {/* Quick inline add form */}
         <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1">
-          <div className="sm:col-span-5">
+          <div className="sm:col-span-4">
             <input
               type="text"
               placeholder="Ketik Nama Tamu (contoh: Budi & Keluarga)"
@@ -1226,11 +1258,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             <select
               value={quickMaxGuests}
               onChange={(e) => setQuickMaxGuests(parseInt(e.target.value, 10) || 2)}
-              className="w-full px-2.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
               title="Jatah Maksimal Tamu pada RSVP (default: 2)"
             >
               <option value={1}>1 Tamu</option>
-              <option value={2}>2 Tamu (Def)</option>
+              <option value={2}>2 Tamu (Default)</option>
               <option value={3}>3 Tamu</option>
               <option value={4}>4 Tamu</option>
               <option value={5}>5 Tamu</option>
@@ -1239,13 +1271,26 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           </div>
 
           <div className="sm:col-span-2">
+            <select
+              value={quickEventChoice}
+              onChange={(e) => setQuickEventChoice(e.target.value as 'all' | 'keluarga' | 'teman')}
+              className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              title="Sesi Acara yang Bisa Dihadiri Tamu"
+            >
+              <option value="all">Semua Acara (Default)</option>
+              <option value="keluarga">Sesi Keluarga</option>
+              <option value="teman">Sesi Teman</option>
+            </select>
+          </div>
+
+          <div className="sm:col-span-1">
             <button
               type="submit"
               disabled={!quickName.trim()}
-              className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+              className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+              title="Tambah Tamu"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>+ Tambah</span>
             </button>
           </div>
         </form>
@@ -1431,6 +1476,33 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         <Users className="w-3 h-3 text-[#0f3b47]" />
                         <span>Jatah: {guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Tamu</span>
                       </span>
+
+                      {/* Badge Sesi Acara */}
+                      {(() => {
+                        const evs = guest.events || ['all'];
+                        const isKeluargaOnly = evs.includes('keluarga') && !evs.includes('teman') && !evs.includes('all');
+                        const isTemanOnly = evs.includes('teman') && !evs.includes('keluarga') && !evs.includes('all');
+
+                        if (isKeluargaOnly) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200" title="Hanya diundang ke Sesi Keluarga">
+                              <span>Sesi Keluarga</span>
+                            </span>
+                          );
+                        }
+                        if (isTemanOnly) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200" title="Hanya diundang ke Sesi Teman">
+                              <span>Sesi Teman</span>
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200" title="Diundang ke semua sesi acara">
+                            <span>Semua Acara (Default)</span>
+                          </span>
+                        );
+                      })()}
 
                       {hasPhone ? (
                         <span className="inline-flex items-center gap-1 font-mono text-[11px] text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
@@ -1674,6 +1746,72 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 </select>
                 <p className="text-[11px] text-[#52717b] mt-1.5 leading-relaxed">
                   Tentukan batas maksimal tamu yang dapat dipilih pada formulir RSVP oleh tamu ini (default 2 orang, maks 6).
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0e2c34] mb-1.5">
+                  Sesi Acara yang Bisa Dihadiri
+                </label>
+                <div className="space-y-2 bg-[#faf6ee] border border-[#ded4be] rounded-xl p-3">
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-[#0e2c34]">
+                    <input
+                      type="checkbox"
+                      checked={modalEvents.includes('all') || (modalEvents.includes('keluarga') && modalEvents.includes('teman'))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setModalEvents(['all']);
+                        } else {
+                          setModalEvents(['keluarga']);
+                        }
+                      }}
+                      className="rounded border-[#ded4be] text-[#0f3b47] focus:ring-[#0f3b47]"
+                    />
+                    <span>Hadir Semua Acara (Default)</span>
+                  </label>
+
+                  <div className="border-t border-[#ded4be]/60 pt-2.5 pl-4 space-y-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-[#0e2c34]">
+                      <input
+                        type="checkbox"
+                        checked={modalEvents.includes('all') || modalEvents.includes('keluarga')}
+                        onChange={(e) => {
+                          const hasTeman = modalEvents.includes('all') || modalEvents.includes('teman');
+                          if (e.target.checked) {
+                            if (hasTeman) setModalEvents(['all']);
+                            else setModalEvents(['keluarga']);
+                          } else {
+                            if (hasTeman) setModalEvents(['teman']);
+                            else setModalEvents(['all']);
+                          }
+                        }}
+                        className="rounded border-[#ded4be] text-[#0f3b47] focus:ring-[#0f3b47]"
+                      />
+                      <span className="font-medium">Sesi Keluarga (18.00 - 19.30)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs text-[#0e2c34]">
+                      <input
+                        type="checkbox"
+                        checked={modalEvents.includes('all') || modalEvents.includes('teman')}
+                        onChange={(e) => {
+                          const hasKeluarga = modalEvents.includes('all') || modalEvents.includes('keluarga');
+                          if (e.target.checked) {
+                            if (hasKeluarga) setModalEvents(['all']);
+                            else setModalEvents(['teman']);
+                          } else {
+                            if (hasKeluarga) setModalEvents(['keluarga']);
+                            else setModalEvents(['all']);
+                          }
+                        }}
+                        className="rounded border-[#ded4be] text-[#0f3b47] focus:ring-[#0f3b47]"
+                      />
+                      <span className="font-medium">Sesi Teman (19.30 - 21.00)</span>
+                    </label>
+                  </div>
+                </div>
+                <p className="text-[11px] text-[#52717b] mt-1.5 leading-relaxed">
+                  Pilih acara mana saja yang dapat dihadiri tamu. Jika hanya salah satu sesi yang dipilih, formulir RSVP di tautan tamu tersebut hanya akan menampilkan sesi yang ditentukan.
                 </p>
               </div>
 
