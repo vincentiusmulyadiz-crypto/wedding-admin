@@ -417,26 +417,31 @@ export const saveGuestsToCloud = async (
     const supabase = getSupabase();
     const custId = getCustomerStorageId(cust);
 
-    // 1. Simpan ke Supabase Auth user_metadata.guest_records_v3[cust.id] (tanpa primary_guest_records global)
+    // 1. Simpan ke Supabase Auth user_metadata (hanya jika ukurannya aman < 3KB agar JWT token tidak tembus batas Cloudflare 8KB)
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (!userError && user) {
         const existingMeta = user.user_metadata || {};
         const existingRecordsV3 =
           existingMeta.guest_records_v3 && typeof existingMeta.guest_records_v3 === 'object'
-            ? existingMeta.guest_records_v3
+            ? { ...existingMeta.guest_records_v3 }
             : {};
 
-        const updatedRecordsV3 = {
-          ...existingRecordsV3,
-          [custId]: guestList,
-        };
+        const listJson = JSON.stringify(guestList);
+        // Jika ukuran tamu wajar (< 3.000 karakter), simpan ke v3 metadata
+        // Jika terlalu besar (puluhan/ratusan tamu), jangan masukkan ke JWT metadata agar tidak memicu 400 Bad Request
+        if (listJson.length <= 3000) {
+          existingRecordsV3[custId] = guestList;
+        } else {
+          delete existingRecordsV3[custId];
+        }
 
         await supabase.auth.updateUser({
           data: {
             ...existingMeta,
-            guest_records_v3: updatedRecordsV3,
+            guest_records_v3: existingRecordsV3,
             primary_guest_records: null,
+            guest_records: null,
             last_guest_sync: new Date().toISOString(),
           },
         });
