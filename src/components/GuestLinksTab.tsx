@@ -29,6 +29,7 @@ export interface InvitedGuest {
   name: string;
   phone: string;
   code?: string;
+  max_guests?: number;
 }
 
 interface GuestLinksTabProps {
@@ -614,10 +615,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Quick Inline Add in Step 1
   const [quickName, setQuickName] = useState<string>('');
   const [quickPhone, setQuickPhone] = useState<string>('');
+  const [quickMaxGuests, setQuickMaxGuests] = useState<number>(2);
 
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
+  const [inputMaxGuests, setInputMaxGuests] = useState<number>(2);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Batch Import Text & Options
@@ -799,11 +802,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     return guests.map((guest) => {
       const code = currentCodes[guest.name] || encodeGuestCode(guest.name);
       const separator = effectiveBase.includes('?') ? '&' : '?';
+      const quota = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
+      const paxParam = `&pax=${quota}`;
 
       const link =
         linkFormat === 'random'
-          ? `${effectiveBase}${separator}c=${code}`
-          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}`;
+          ? `${effectiveBase}${separator}c=${code}${paxParam}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}${paxParam}`;
 
       const lowerName = guest.name.toLowerCase();
       const lowerCode = code.toLowerCase();
@@ -814,6 +819,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         code,
         link,
         isRsvped,
+        max_guests: quota,
       };
     });
   }, [guests, baseUrl, previewBaseUrl, existingRsvps, linkFormat, codesStorageKey]);
@@ -889,19 +895,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: trimmed,
       phone: quickPhone.trim(),
+      max_guests: quickMaxGuests,
     };
 
     const nextList = [newGuest, ...guests];
     updateAndPersistGuests(nextList);
     setQuickName('');
     setQuickPhone('');
-    showToast(`Tamu "${trimmed}" berhasil ditambahkan!`, 'success');
+    setQuickMaxGuests(2);
+    showToast(`Tamu "${trimmed}" (Jatah: ${quickMaxGuests} Tamu) berhasil ditambahkan!`, 'success');
   };
 
   // Add / Edit Handlers for modal
   const handleOpenAddModal = () => {
     setInputName('');
     setInputPhone('');
+    setInputMaxGuests(2);
     setFormError(null);
     setEditingGuest(null);
     setShowAddModal(true);
@@ -911,6 +920,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setEditingGuest(guest);
     setInputName(guest.name);
     setInputPhone(guest.phone);
+    setInputMaxGuests(guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2);
     setFormError(null);
     setShowAddModal(true);
   };
@@ -927,7 +937,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     if (editingGuest) {
       nextList = guests.map((g) =>
         g.id === editingGuest.id
-          ? { ...g, name: trimmedName, phone: inputPhone.trim() }
+          ? { ...g, name: trimmedName, phone: inputPhone.trim(), max_guests: inputMaxGuests }
           : g
       );
       showToast(`Data "${trimmedName}" berhasil diperbarui`, 'success');
@@ -936,6 +946,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         name: trimmedName,
         phone: inputPhone.trim(),
+        max_guests: inputMaxGuests,
       };
       nextList = [newGuest, ...guests];
       showToast(`Tamu "${trimmedName}" berhasil ditambahkan`, 'success');
@@ -985,23 +996,34 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const imported: InvitedGuest[] = lines.map((line, idx) => {
       let name = line;
       let phone = '';
+      let maxGuests = 2;
 
-      if (line.includes(',')) {
-        const parts = line.split(',');
-        name = parts[0].trim();
-        phone = parts.slice(1).join(',').trim();
-      } else if (line.includes(' - ')) {
-        const parts = line.split(' - ');
-        name = parts[0].trim();
-        phone = parts[1].trim();
-      } else if (line.includes('\t')) {
+      const parseQuota = (val?: string) => {
+        if (!val) return 2;
+        const num = parseInt(val.trim(), 10);
+        return isNaN(num) ? 2 : Math.min(Math.max(num, 1), 6);
+      };
+
+      if (line.includes('\t')) {
         const parts = line.split('\t');
         name = parts[0].trim();
-        phone = parts.slice(1).join('\t').trim();
+        phone = parts[1] ? parts[1].trim() : '';
+        maxGuests = parseQuota(parts[2]);
       } else if (line.includes(';')) {
         const parts = line.split(';');
         name = parts[0].trim();
-        phone = parts.slice(1).join(';').trim();
+        phone = parts[1] ? parts[1].trim() : '';
+        maxGuests = parseQuota(parts[2]);
+      } else if (line.includes(' - ')) {
+        const parts = line.split(' - ');
+        name = parts[0].trim();
+        phone = parts[1] ? parts[1].trim() : '';
+        maxGuests = parseQuota(parts[2]);
+      } else if (line.includes(',')) {
+        const parts = line.split(',');
+        name = parts[0].trim();
+        phone = parts[1] ? parts[1].trim() : '';
+        maxGuests = parseQuota(parts[2]);
       }
 
       name = name.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim();
@@ -1010,6 +1032,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         id: `batch-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
         name,
         phone,
+        max_guests: maxGuests,
       };
     });
 
@@ -1186,7 +1209,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             />
           </div>
 
-          <div className="sm:col-span-4">
+          <div className="sm:col-span-3">
             <div className="relative">
               <Phone className="w-3.5 h-3.5 text-[#819ea7] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1199,14 +1222,30 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           </div>
 
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-2">
+            <select
+              value={quickMaxGuests}
+              onChange={(e) => setQuickMaxGuests(parseInt(e.target.value, 10) || 2)}
+              className="w-full px-2.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              title="Jatah Maksimal Tamu pada RSVP (default: 2)"
+            >
+              <option value={1}>1 Tamu</option>
+              <option value={2}>2 Tamu (Def)</option>
+              <option value={3}>3 Tamu</option>
+              <option value={4}>4 Tamu</option>
+              <option value={5}>5 Tamu</option>
+              <option value={6}>6 Tamu</option>
+            </select>
+          </div>
+
+          <div className="sm:col-span-2">
             <button
               type="submit"
               disabled={!quickName.trim()}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+              className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>+ Tambah Tamu</span>
+              <span>+ Tambah</span>
             </button>
           </div>
         </form>
@@ -1388,6 +1427,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {guest.name}
                       </span>
 
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0f3b47] bg-[#e6f0f2] px-2 py-0.5 rounded-md border border-[#c4dce1]" title="Jatah maksimal tamu pada formulir RSVP">
+                        <Users className="w-3 h-3 text-[#0f3b47]" />
+                        <span>Jatah: {guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Tamu</span>
+                      </span>
+
                       {hasPhone ? (
                         <span className="inline-flex items-center gap-1 font-mono text-[11px] text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
                           <Phone className="w-3 h-3 text-teal-700" />
@@ -1493,14 +1537,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
 
             <p className="text-xs text-[#52717b] leading-relaxed">
-              Salin dan tempel daftar tamu Anda di sini (satu baris per tamu). Format: <code className="text-[#0e2c34] font-bold">Nama, Nomor HP</code> atau cukup <code className="text-[#0e2c34] font-bold">Nama</code> saja jika belum ada nomor.
+              Salin dan tempel daftar tamu Anda di sini (satu baris per tamu). Format: <code className="text-[#0e2c34] font-bold">Nama, Nomor HP, Jatah Tamu</code> (opsional, default 2 orang, maks 6) atau cukup <code className="text-[#0e2c34] font-bold">Nama</code> saja jika belum ada nomor.
             </p>
 
             <textarea
               rows={8}
               value={batchText}
               onChange={(e) => setBatchText(e.target.value)}
-              placeholder={`Budi Santoso, 081234567890\nSiti Aminah & Keluarga, 085712345678\nDr. Hendra Wijaya, 081987654321\nReza Fahlevi`}
+              placeholder={`Budi Santoso, 081234567890, 2\nSiti Aminah & Keluarga, 085712345678, 4\nDr. Hendra Wijaya, 081987654321, 1\nReza Fahlevi`}
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
 
@@ -1609,6 +1653,27 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 </div>
                 <p className="text-[11px] text-[#52717b] mt-1.5 leading-relaxed">
                   Bisa diawali 08 atau 62. Tombol Kirim WhatsApp akan langsung mengarah ke nomor ini.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0e2c34] mb-1.5">
+                  Jatah Jumlah Tamu Maksimal
+                </label>
+                <select
+                  value={inputMaxGuests}
+                  onChange={(e) => setInputMaxGuests(parseInt(e.target.value, 10) || 2)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                >
+                  <option value={1}>1 Orang</option>
+                  <option value={2}>2 Orang (Default)</option>
+                  <option value={3}>3 Orang</option>
+                  <option value={4}>4 Orang</option>
+                  <option value={5}>5 Orang</option>
+                  <option value={6}>6 Orang (Maksimal)</option>
+                </select>
+                <p className="text-[11px] text-[#52717b] mt-1.5 leading-relaxed">
+                  Tentukan batas maksimal tamu yang dapat dipilih pada formulir RSVP oleh tamu ini (default 2 orang, maks 6).
                 </p>
               </div>
 
