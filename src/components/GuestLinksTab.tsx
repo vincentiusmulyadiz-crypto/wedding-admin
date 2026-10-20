@@ -22,6 +22,9 @@ import {
   Sliders,
   CheckCircle2,
   AlertTriangle,
+  Eye,
+  Mail,
+  XCircle,
 } from 'lucide-react';
 
 export interface InvitedGuest {
@@ -30,6 +33,7 @@ export interface InvitedGuest {
   phone: string;
   code?: string;
   max_guests?: number;
+  opened_at?: string | null;
 }
 
 interface GuestLinksTabProps {
@@ -46,6 +50,30 @@ Tanpa mengurangi rasa hormat, kami bermaksud mengundang Anda untuk hadir pada ac
 Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Anda berkenan hadir dan memberikan doa restu.
 
 Terima kasih.`;
+
+function formatOpenedTime(isoString?: string | null): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+
+    const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (isToday) {
+      return `Hari ini ${timeStr}`;
+    }
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) {
+      return `Kemarin ${timeStr}`;
+    }
+    const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    return `${dateStr} ${timeStr}`;
+  } catch {
+    return '';
+  }
+}
 
 // Helper: Cek apakah daftar saat ini hanya berisi 4 data dummy bawaan
 export const isSampleGuestList = (list: InvitedGuest[]): boolean => {
@@ -382,7 +410,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
     try {
       const { data: dbGuests, error: dbErr } = await supabase
         .from('guests')
-        .select('id, name, phone, code')
+        .select('id, name, phone, code, opened_at')
         .eq('customer_id', cust.id);
 
       if (!dbErr && dbGuests && dbGuests.length > 0) {
@@ -397,6 +425,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
           name: g.name,
           phone: g.phone || '',
           code: g.code,
+          opened_at: g.opened_at || null,
           max_guests: localQuotaMap.get(g.name) || 2,
         }));
       }
@@ -460,6 +489,7 @@ export const saveGuestsToCloud = async (
           name: g.name,
           phone: g.phone || '',
           code: g.code || encodeGuestCode(g.name),
+          opened_at: g.opened_at || null,
         }));
         await supabase.from('guests').insert(rows);
       }
@@ -737,6 +767,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     localStorage.setItem(linkFormatStorageKey, linkFormat);
   }, [linkFormatStorageKey, linkFormat]);
 
+  const [guestOpensMap, setGuestOpensMap] = useState<Map<string, string>>(new Map());
+  const [filterStatus, setFilterStatus] = useState<'all' | 'unopened' | 'opened' | 'rsvped'>('all');
+
   // Fetch RSVPs to match confirmation status
   const fetchExistingRsvps = useCallback(async () => {
     if (!customer?.id) return;
@@ -760,14 +793,41 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     }
   }, [customer?.id]);
 
+  // Fetch guest opened timestamps from public.guests table
+  const fetchGuestOpens = useCallback(async () => {
+    if (!customer?.id) return;
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('guests')
+        .select('name, code, opened_at')
+        .eq('customer_id', customer.id)
+        .not('opened_at', 'is', null);
+
+      if (!error && Array.isArray(data)) {
+        const map = new Map<string, string>();
+        data.forEach((row: any) => {
+          if (row.opened_at) {
+            if (row.code) map.set(row.code, row.opened_at);
+            if (row.name) map.set(row.name.trim().toLowerCase(), row.opened_at);
+          }
+        });
+        setGuestOpensMap(map);
+      }
+    } catch (err) {
+      console.warn('Error fetching guest opens:', err);
+    }
+  }, [customer?.id]);
+
   useEffect(() => {
     fetchExistingRsvps();
+    fetchGuestOpens();
 
     if (!customer?.id) return;
     const supabase = getSupabase();
-    const channelName = `realtime-links-rsvps-${customer.id}-${Date.now()}`;
-    const channel = supabase
-      .channel(channelName)
+    const rsvpChannelName = `realtime-links-rsvps-${customer.id}-${Date.now()}`;
+    const rsvpChannel = supabase
+      .channel(rsvpChannelName)
       .on(
         'postgres_changes',
         {
@@ -782,15 +842,34 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       )
       .subscribe();
 
+    const guestsChannelName = `realtime-links-guests-${customer.id}-${Date.now()}`;
+    const guestsChannel = supabase
+      .channel(guestsChannelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'guests',
+          filter: `customer_id=eq.${customer.id}`,
+        },
+        () => {
+          fetchGuestOpens();
+        }
+      )
+      .subscribe();
+
     const timer = window.setInterval(() => {
       fetchExistingRsvps();
+      fetchGuestOpens();
     }, 30000);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(rsvpChannel);
+      supabase.removeChannel(guestsChannel);
       clearInterval(timer);
     };
-  }, [customer?.id, fetchExistingRsvps]);
+  }, [customer?.id, fetchExistingRsvps, fetchGuestOpens]);
 
   // Enriched Guests with generated links, codes, and RSVP status
   const enrichedGuests = useMemo(() => {
@@ -815,10 +894,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       localStorage.setItem(codesStorageKey, JSON.stringify(currentCodes));
     }
 
-    const rsvpLookup = new Set<string>();
+    const rsvpMap = new Map<string, Rsvp>();
     existingRsvps.forEach((r) => {
-      if (r.name) rsvpLookup.add(r.name.trim().toLowerCase());
-      if (r.guest_param) rsvpLookup.add(r.guest_param.trim().toLowerCase());
+      if (r.name) rsvpMap.set(r.name.trim().toLowerCase(), r);
+      if (r.guest_param) rsvpMap.set(r.guest_param.trim().toLowerCase(), r);
     });
 
     let cleanBase = baseUrl.trim().replace(/\/+$/, '');
@@ -840,19 +919,31 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
       const lowerName = guest.name.toLowerCase();
       const lowerCode = code.toLowerCase();
-      const isRsvped = rsvpLookup.has(lowerName) || rsvpLookup.has(lowerCode);
+      const rsvpRow = rsvpMap.get(lowerName) || rsvpMap.get(lowerCode);
+      const isRsvped = Boolean(rsvpRow);
+
+      const openedAt = guest.opened_at || guestOpensMap.get(code) || guestOpensMap.get(lowerName) || null;
+      const isOpened = Boolean(openedAt);
+
+      const status: 'rsvped' | 'opened' | 'unopened' = isRsvped ? 'rsvped' : isOpened ? 'opened' : 'unopened';
 
       return {
         ...guest,
         code,
         link,
         isRsvped,
+        isOpened,
+        openedAt,
+        openedAtFormatted: formatOpenedTime(openedAt),
+        status,
+        rsvpAttendance: rsvpRow?.attendance || null,
+        rsvpGuests: rsvpRow?.guests || null,
         max_guests: quota,
       };
     });
-  }, [guests, baseUrl, previewBaseUrl, existingRsvps, linkFormat, codesStorageKey]);
+  }, [guests, baseUrl, previewBaseUrl, existingRsvps, guestOpensMap, linkFormat, codesStorageKey]);
 
-  // Filtered guest list based on search and phone filter
+  // Filtered guest list based on search, phone filter, and 3-state status
   const filteredGuests = useMemo(() => {
     return enrichedGuests.filter((g) => {
       const query = searchQuery.trim().toLowerCase();
@@ -867,16 +958,28 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         (filterPhone === 'with_phone' && !!normalizePhoneNumber(g.phone)) ||
         (filterPhone === 'no_phone' && !normalizePhoneNumber(g.phone));
 
-      return matchSearch && matchPhone;
+      const matchStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'unopened' && g.status === 'unopened') ||
+        (filterStatus === 'opened' && g.status === 'opened') ||
+        (filterStatus === 'rsvped' && g.status === 'rsvped');
+
+      return matchSearch && matchPhone && matchStatus;
     });
-  }, [enrichedGuests, searchQuery, filterPhone]);
+  }, [enrichedGuests, searchQuery, filterPhone, filterStatus]);
 
   const totalGuests = guests.length;
   const withPhoneCount = useMemo(() => {
     return guests.filter((g) => !!normalizePhoneNumber(g.phone)).length;
   }, [guests]);
+  const unopenedCount = useMemo(() => {
+    return enrichedGuests.filter((g) => g.status === 'unopened').length;
+  }, [enrichedGuests]);
+  const openedCount = useMemo(() => {
+    return enrichedGuests.filter((g) => g.status === 'opened').length;
+  }, [enrichedGuests]);
   const rsvpedCount = useMemo(() => {
-    return enrichedGuests.filter((g) => g.isRsvped).length;
+    return enrichedGuests.filter((g) => g.status === 'rsvped').length;
   }, [enrichedGuests]);
 
   // Clipboard Helpers
@@ -1373,7 +1476,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
           <div className="flex items-center gap-2 text-xs">
             <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded4be] font-bold text-[#0e2c34]">
-              {totalGuests} Tamu ({withPhoneCount} ada No. WA, {rsvpedCount} sudah konfirmasi)
+              {totalGuests} Tamu ({unopenedCount} Belum Buka • {openedCount} Sudah Buka • {rsvpedCount} Konfirmasi)
             </span>
 
             {guests.length > 0 && (
@@ -1418,11 +1521,69 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               onChange={(e) => setFilterPhone(e.target.value as any)}
               className="px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-medium focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             >
-              <option value="all">Semua Tamu ({guests.length})</option>
+              <option value="all">Semua Kontak ({guests.length})</option>
               <option value="with_phone">Ada Nomor WA ({withPhoneCount})</option>
               <option value="no_phone">Belum Ada Nomor ({guests.length - withPhoneCount})</option>
             </select>
           </div>
+        </div>
+
+        {/* Filter Status 3 Warna */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              filterStatus === 'all'
+                ? 'bg-[#0f3b47] text-white shadow-xs'
+                : 'bg-[#faf6ee] text-[#52717b] hover:bg-[#f0ebd9] border border-[#ded4be]'
+            }`}
+          >
+            <span>Semua</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{totalGuests}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('unopened')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              filterStatus === 'unopened'
+                ? 'bg-slate-700 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5 text-slate-500" />
+            <span>Belum Dibuka</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{unopenedCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('opened')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              filterStatus === 'opened'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5 text-amber-600" />
+            <span>Sudah Dibuka (Belum RSVP)</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{openedCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('rsvped')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              filterStatus === 'rsvped'
+                ? 'bg-teal-700 text-white shadow-xs'
+                : 'bg-teal-50 text-teal-900 hover:bg-teal-100 border border-teal-300'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+            <span>Sudah Konfirmasi</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{rsvpedCount}</span>
+          </button>
         </div>
 
         {/* Daftar Tamu dengan Tombol WhatsApp sebagai Aksi Utama */}
@@ -1475,10 +1636,33 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         </button>
                       )}
 
-                      {guest.isRsvped && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full border border-teal-300">
-                          <CheckCircle2 className="w-3 h-3 text-teal-700" />
-                          <span>Sudah Konfirmasi</span>
+                      {guest.status === 'rsvped' ? (
+                        guest.rsvpAttendance === 'tidak_hadir' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-300">
+                            <XCircle className="w-3 h-3 text-rose-700" />
+                            <span>Tidak Hadir</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full border border-teal-300">
+                            <CheckCircle2 className="w-3 h-3 text-teal-700" />
+                            <span>Sudah Konfirmasi {guest.rsvpGuests ? `(${guest.rsvpGuests} Pax)` : ''}</span>
+                          </span>
+                        )
+                      ) : guest.status === 'opened' ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 shadow-xs"
+                          title={`Tamu telah membuka undangan pada ${guest.openedAtFormatted || ''}`}
+                        >
+                          <Eye className="w-3 h-3 text-amber-700" />
+                          <span>Dibuka {guest.openedAtFormatted ? `• ${guest.openedAtFormatted}` : ''} (Belum RSVP)</span>
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-300"
+                          title="Tamu belum pernah membuka link undangan ini"
+                        >
+                          <Mail className="w-3 h-3 text-slate-500" />
+                          <span>Belum Dibuka</span>
                         </span>
                       )}
                     </div>
