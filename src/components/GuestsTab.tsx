@@ -142,7 +142,35 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
   useEffect(() => {
     fetchGuests();
-  }, [fetchGuests]);
+
+    if (!customer?.id) return;
+    const supabase = getSupabase();
+    const channelName = `realtime-guests-tab-${customer.id}-${Date.now()}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rsvps',
+          filter: `customer_id=eq.${customer.id}`,
+        },
+        () => {
+          fetchGuests();
+        }
+      )
+      .subscribe();
+
+    const pollTimer = window.setInterval(() => {
+      fetchGuests();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollTimer);
+    };
+  }, [customer?.id, fetchGuests]);
 
   // Client-side filtering & sorting
   const filteredAndSortedRsvps = React.useMemo(() => {

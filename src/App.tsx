@@ -142,12 +142,14 @@ export function App() {
       setCustomers(list);
 
       if (list.length > 0) {
+        const savedId = localStorage.getItem('last_selected_customer_id');
+        const savedCustomer = savedId ? list.find((c) => c.id === savedId) : null;
         const ownCustomer = list.find((c) => c.owner_id === session.user.id);
         setSelectedCustomer((prev) => {
           if (prev && list.some((c) => c.id === prev.id)) {
-            return list.find((c) => c.id === prev.id) || ownCustomer || list[0];
+            return list.find((c) => c.id === prev.id) || savedCustomer || ownCustomer || list[0];
           }
-          return ownCustomer || list[0];
+          return savedCustomer || ownCustomer || list[0];
         });
       } else {
         setSelectedCustomer(null);
@@ -232,7 +234,10 @@ export function App() {
       <Navbar
         customers={customers}
         selectedCustomer={selectedCustomer}
-        onSelectCustomer={(c) => setSelectedCustomer(c)}
+        onSelectCustomer={(c) => {
+                  setSelectedCustomer(c);
+                  if (c?.id) localStorage.setItem('last_selected_customer_id', c.id);
+                }}
         isAdmin={isAdmin}
         activeTab={activeTab}
         onSelectTab={setActiveTab}

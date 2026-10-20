@@ -359,8 +359,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
           }
         }
 
-        // Jika belum ada di guest_records_v3:
-        // Migrasi satu kali dari v2 / tabel HANYA jika ini dashboard Alfredo & Yana
+        // Migrasi legacy satu kali HANYA untuk dashboard Alfredo & Yana
         if (isAlfredoYanaCustomer(cust)) {
           const legacyRecords = meta.guest_records;
           const legacyList =
@@ -373,12 +372,6 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
             await saveGuestsToCloud(cust, legacyList);
             return legacyList;
           }
-        } else {
-          // Untuk dashboard pengantin selain Alfredo & Yana yang belum terinisialisasi di v3,
-          // inisialisasi bersih ke array kosong [] agar bocoran dari v2 / tabel lama langsung terhapus
-          await saveGuestsToCloud(cust, []);
-          localStorage.removeItem(getGuestStorageKey(cust));
-          return [];
         }
       }
     } catch (metaErr) {
@@ -393,11 +386,18 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
         .eq('customer_id', cust.id);
 
       if (!dbErr && dbGuests && dbGuests.length > 0) {
+        const localList = loadStoredGuests(cust);
+        const localQuotaMap = new Map<string, number>();
+        localList.forEach((g) => {
+          if (g.max_guests) localQuotaMap.set(g.name, g.max_guests);
+        });
+
         return dbGuests.map((g: any) => ({
           id: g.id || `db-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           name: g.name,
           phone: g.phone || '',
           code: g.code,
+          max_guests: localQuotaMap.get(g.name) || 2,
         }));
       }
     } catch {
@@ -762,7 +762,35 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
   useEffect(() => {
     fetchExistingRsvps();
-  }, [fetchExistingRsvps]);
+
+    if (!customer?.id) return;
+    const supabase = getSupabase();
+    const channelName = `realtime-links-rsvps-${customer.id}-${Date.now()}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rsvps',
+          filter: `customer_id=eq.${customer.id}`,
+        },
+        () => {
+          fetchExistingRsvps();
+        }
+      )
+      .subscribe();
+
+    const timer = window.setInterval(() => {
+      fetchExistingRsvps();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(timer);
+    };
+  }, [customer?.id, fetchExistingRsvps]);
 
   // Enriched Guests with generated links, codes, and RSVP status
   const enrichedGuests = useMemo(() => {
