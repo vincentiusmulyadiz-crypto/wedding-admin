@@ -119,9 +119,10 @@ export function App() {
   }, []);
 
   const [customersError, setCustomersError] = useState<string | null>(null);
+  const currentUserId = session?.user?.id;
 
-  const fetchCustomers = useCallback(async () => {
-    if (!session?.user) return;
+  const fetchCustomers = useCallback(async (retryCount = 0) => {
+    if (!currentUserId) return;
     setCustomersLoading((prev) => (customers.length === 0 ? true : prev));
     setCustomersError(null);
 
@@ -144,7 +145,7 @@ export function App() {
       if (list.length > 0) {
         const savedId = localStorage.getItem('last_selected_customer_id');
         const savedCustomer = savedId ? list.find((c) => c.id === savedId) : null;
-        const ownCustomer = list.find((c) => c.owner_id === session.user.id);
+        const ownCustomer = list.find((c) => c.owner_id === currentUserId);
         setSelectedCustomer((prev) => {
           if (prev && list.some((c) => c.id === prev.id)) {
             return list.find((c) => c.id === prev.id) || savedCustomer || ownCustomer || list[0];
@@ -155,16 +156,28 @@ export function App() {
         setSelectedCustomer(null);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal memuat data pelanggan';
-      setCustomersError(msg);
+      const rawMsg = err instanceof Error ? err.message : 'Gagal memuat data pelanggan';
       console.error('Error fetching customers:', err);
+
+      // Otomatis coba lagi 1x jika koneksi Safari/mobile terputus atau timeout
+      if (retryCount === 0 && (rawMsg.includes('Load failed') || rawMsg.includes('Failed to fetch'))) {
+        setTimeout(() => {
+          fetchCustomers(1);
+        }, 1200);
+        return;
+      }
+
+      const friendlyMsg = rawMsg.includes('Load failed')
+        ? 'Koneksi jaringan terputus atau header otorisasi akun terlalu besar (TypeError: Load failed). Silakan klik tombol Cek Ulang di bawah.'
+        : rawMsg;
+
+      setCustomersError(friendlyMsg);
     } finally {
       setCustomersLoading(false);
     }
-  }, [session?.user]);
+  }, [currentUserId, customers.length]);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
-  const currentUserId = session?.user?.id;
 
   useEffect(() => {
     if (currentUserId && !isDemoMode) {

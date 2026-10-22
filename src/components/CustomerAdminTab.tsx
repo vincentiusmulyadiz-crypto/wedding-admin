@@ -32,12 +32,14 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
   const [newSlug, setNewSlug] = useState<string>('');
   const [newCoupleNames, setNewCoupleNames] = useState<string>('');
   const [newEventDate, setNewEventDate] = useState<string>('');
+  const [newOwnerId, setNewOwnerId] = useState<string>('');
   const [adding, setAdding] = useState<boolean>(false);
   const [addError, setAddError] = useState<string | null>(null);
 
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editCoupleNames, setEditCoupleNames] = useState<string>('');
   const [editEventDate, setEditEventDate] = useState<string>('');
+  const [editOwnerId, setEditOwnerId] = useState<string>('');
   const [updating, setUpdating] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -52,6 +54,7 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
     setEditCoupleNames(customer.couple_names);
     const d = customer.event_date ? customer.event_date.slice(0, 10) : '';
     setEditEventDate(d);
+    setEditOwnerId(customer.owner_id || '');
     setEditError(null);
   };
 
@@ -76,12 +79,13 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
     setAdding(true);
     try {
       const supabase = getSupabase();
+      const targetOwnerId = newOwnerId.trim() || currentUserId;
       const { error } = await supabase.from('customers').insert([
         {
           slug: cleanSlug,
           couple_names: newCoupleNames.trim(),
           event_date: newEventDate,
-          owner_id: currentUserId,
+          owner_id: targetOwnerId,
         },
       ]);
 
@@ -97,6 +101,7 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
       setNewSlug('');
       setNewCoupleNames('');
       setNewEventDate('');
+      setNewOwnerId('');
       setShowAddModal(false);
       onRefreshCustomers();
     } catch (err: unknown) {
@@ -124,12 +129,17 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
     setUpdating(true);
     try {
       const supabase = getSupabase();
+      const updatePayload: Record<string, any> = {
+        couple_names: editCoupleNames.trim(),
+        event_date: editEventDate,
+      };
+      if (editOwnerId.trim()) {
+        updatePayload.owner_id = editOwnerId.trim();
+      }
+
       const { error } = await supabase
         .from('customers')
-        .update({
-          couple_names: editCoupleNames.trim(),
-          event_date: editEventDate,
-        })
+        .update(updatePayload)
         .eq('id', editingCustomer.id);
 
       if (error) {
@@ -309,6 +319,23 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block text-[#1f404b] font-bold mb-1.5 flex items-center justify-between">
+                  <span>UID Akun Klien / Pengantin (owner_id)</span>
+                  <span className="text-[10px] text-[#6d8a93] font-normal">Opsional</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 78b69efa-abcc-46a0-a82f-fac165d69989"
+                  value={newOwnerId}
+                  onChange={(e) => setNewOwnerId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#819ea7] font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                />
+                <p className="text-[11px] text-[#6d8a93] mt-1 leading-relaxed">
+                  Tempelkan UID dari menu <strong>Supabase &gt; Authentication &gt; Users</strong> agar akun pengantin langsung terhubung tanpa perlu SQL manual. Jika dikosongkan, otomatis menggunakan akun Anda.
+                </p>
+              </div>
+
               <div className="flex justify-end gap-2.5 pt-3">
                 <button
                   type="button"
@@ -381,6 +408,23 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                   onChange={(e) => setEditEventDate(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[#1f404b] font-bold mb-1.5 flex items-center justify-between">
+                  <span>UID Akun Pengantin (owner_id)</span>
+                  <span className="text-[10px] text-[#6d8a93] font-normal">Hubungkan Akun</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 78b69efa-abcc-46a0-a82f-fac165d69989"
+                  value={editOwnerId}
+                  onChange={(e) => setEditOwnerId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#819ea7] font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                />
+                <p className="text-[11px] text-[#6d8a93] mt-1 leading-relaxed">
+                  Ubah atau tempelkan UID akun pengantin agar hanya akun tersebut yang dapat mengakses data ini.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2.5 pt-3">
