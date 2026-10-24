@@ -420,14 +420,22 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
           if (g.max_guests) localQuotaMap.set(g.name, g.max_guests);
         });
 
-        return dbGuests.map((g: any) => ({
-          id: g.id || `db-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          name: g.name,
-          phone: g.phone || '',
-          code: g.code,
-          opened_at: g.opened_at || null,
-          max_guests: localQuotaMap.get(g.name) || decodeGuestQuota(g.code) || 2,
-        }));
+        return dbGuests.map((g: any) => {
+          const cloudQuota = decodeGuestQuota(g.code);
+          const localQuota = localQuotaMap.get(g.name);
+          const resolvedQuota =
+            localQuota && localQuota !== 2
+              ? localQuota
+              : cloudQuota || localQuota || 2;
+          return {
+            id: g.id || `db-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            name: g.name,
+            phone: g.phone || '',
+            code: g.code,
+            opened_at: g.opened_at || null,
+            max_guests: resolvedQuota,
+          };
+        });
       }
     } catch {
       // Abaikan jika tabel belum ada
@@ -447,7 +455,7 @@ export const saveGuestsToCloud = async (
     const supabase = getSupabase();
     const custId = getCustomerStorageId(cust);
 
-    // 1. Simpan ke Supabase Auth user_metadata (hanya jika ukurannya aman < 3KB agar JWT token tidak tembus batas Cloudflare 8KB)
+    // 1. Simpan ke Supabase Auth user_metadata (kompak agar muat banyak tamu tanpa menembus batas header 8KB)
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (!userError && user) {
@@ -457,11 +465,16 @@ export const saveGuestsToCloud = async (
             ? { ...existingMeta.guest_records_v3 }
             : {};
 
-        const listJson = JSON.stringify(guestList);
-        // Jika ukuran tamu wajar (< 3.000 karakter), simpan ke v3 metadata
-        // Jika terlalu besar (puluhan/ratusan tamu), jangan masukkan ke JWT metadata agar tidak memicu 400 Bad Request
-        if (listJson.length <= 3000) {
-          existingRecordsV3[custId] = guestList;
+        const compactList = guestList.map((g) => ({
+          id: g.id,
+          name: g.name,
+          phone: g.phone || '',
+          max_guests: g.max_guests && g.max_guests > 0 ? g.max_guests : 2,
+          code: g.code,
+        }));
+        const listJson = JSON.stringify(compactList);
+        if (listJson.length <= 5500) {
+          existingRecordsV3[custId] = compactList;
         } else {
           delete existingRecordsV3[custId];
         }
@@ -481,7 +494,24 @@ export const saveGuestsToCloud = async (
     }
 
     // 2. Jika tabel public.guests ada, sinkronkan juga ke tabel database khusus customer_id ini
+    // PENTING: Baca dan pertahankan opened_at yang sudah ada di database agar status "Sudah Dibuka" tidak pernah hilang!
     try {
+      const { data: existingDbGuests } = await supabase
+        .from('guests')
+        .select('name, code, opened_at')
+        .eq('customer_id', cust.id)
+        .not('opened_at', 'is', null);
+
+      const existingOpenedMap = new Map<string, string>();
+      if (Array.isArray(existingDbGuests)) {
+        existingDbGuests.forEach((row: any) => {
+          if (row.opened_at) {
+            if (row.code) existingOpenedMap.set(row.code, row.opened_at);
+            if (row.name) existingOpenedMap.set(row.name.trim().toLowerCase(), row.opened_at);
+          }
+        });
+      }
+
       await supabase.from('guests').delete().eq('customer_id', cust.id);
       if (guestList.length > 0) {
         const rows = guestList.map((g) => {
@@ -492,12 +522,18 @@ export const saveGuestsToCloud = async (
             decodeGuestQuota(g.code) === quota
               ? g.code
               : encodeGuestCode(g.name, quota);
+          const preservedOpenedAt =
+            g.opened_at ||
+            (g.code ? existingOpenedMap.get(g.code) : null) ||
+            existingOpenedMap.get(validCode) ||
+            existingOpenedMap.get(g.name.trim().toLowerCase()) ||
+            null;
           return {
             customer_id: cust.id,
             name: g.name,
             phone: g.phone || '',
             code: validCode,
-            opened_at: g.opened_at || null,
+            opened_at: preservedOpenedAt,
           };
         });
         await supabase.from('guests').insert(rows);
@@ -698,8 +734,25 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         if (isCancelled) return;
 
         if (cloudGuests && cloudGuests.length > 0) {
-          setGuests(cloudGuests);
-          saveGuestsForCustomer(customer, cloudGuests, userId || undefined);
+          let needsCloudCodeSync = false;
+          const normalizedCloudGuests = cloudGuests.map((g) => {
+            const cleanName = (g.name || '').trim();
+            const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
+            if (
+              !g.code ||
+              decodeGuestCode(g.code) !== cleanName ||
+              decodeGuestQuota(g.code) !== quota
+            ) {
+              needsCloudCodeSync = true;
+              return { ...g, max_guests: quota, code: encodeGuestCode(cleanName, quota) };
+            }
+            return { ...g, max_guests: quota };
+          });
+          setGuests(normalizedCloudGuests);
+          saveGuestsForCustomer(customer, normalizedCloudGuests, userId || undefined);
+          if (needsCloudCodeSync) {
+            await saveGuestsToCloud(customer, normalizedCloudGuests);
+          }
           setSyncStatus('synced');
         } else if (localGuests.length > 0 && !isSampleGuestList(localGuests)) {
           // Ada data lokal v3 untuk customer ini tapi di cloud belum ada, upload ke cloud
@@ -892,36 +945,35 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     let codesUpdated = false;
     const currentCodes: Record<string, string> = { ...savedCodes };
 
+    const isValidGuestCode = (c: string | undefined, cleanName: string, quota: number): boolean => {
+      if (!c) return false;
+      try {
+        const salt = c.slice(0, 4);
+        const b64 = c.slice(4);
+        const saltNum = parseInt(salt, 16);
+        const scrambled = base64UrlDecode(b64);
+        const bytes = new Uint8Array(scrambled.length);
+        for (let i = 0; i < bytes.length; i++) {
+          const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
+          bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
+        }
+        const raw = new TextDecoder().decode(bytes);
+        if (raw.includes(':::') || raw.trim() !== cleanName) return false;
+        return decodeGuestQuota(c) === quota;
+      } catch {
+        return false;
+      }
+    };
+
     guests.forEach((g) => {
       const cleanName = g.name.trim();
       const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
-      const existing = currentCodes[cleanName] || g.code;
-      let needsNew = !existing;
-      if (existing) {
-        try {
-          // Bersihkan cache kode lama jika sebelumnya pernah mengandung ':::' atau kuota berubah
-          const salt = existing.slice(0, 4);
-          const b64 = existing.slice(4);
-          const saltNum = parseInt(salt, 16);
-          const scrambled = base64UrlDecode(b64);
-          const bytes = new Uint8Array(scrambled.length);
-          for (let i = 0; i < bytes.length; i++) {
-            const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
-            bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
-          }
-          const raw = new TextDecoder().decode(bytes);
-          if (
-            raw.includes(':::') ||
-            raw.trim() !== cleanName ||
-            decodeGuestQuota(existing) !== quota
-          ) {
-            needsNew = true;
-          }
-        } catch {
-          needsNew = true;
+      if (isValidGuestCode(g.code, cleanName, quota)) {
+        if (currentCodes[cleanName] !== g.code) {
+          currentCodes[cleanName] = g.code!;
+          codesUpdated = true;
         }
-      }
-      if (needsNew) {
+      } else if (!isValidGuestCode(currentCodes[cleanName], cleanName, quota)) {
         currentCodes[cleanName] = encodeGuestCode(cleanName, quota);
         codesUpdated = true;
       }
@@ -929,17 +981,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
     if (codesUpdated) {
       localStorage.setItem(codesStorageKey, JSON.stringify(currentCodes));
-      // Sinkronkan juga ke tabel public.guests agar kode dengan kuota terbaru tersimpan di cloud
-      const syncedList = guests.map((g) => {
-        const cleanName = g.name.trim();
-        const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
-        return {
-          ...g,
-          code: currentCodes[cleanName] || encodeGuestCode(cleanName, quota),
-        };
-      });
-      saveGuestsForCustomer(customer, syncedList, userId || undefined);
-      saveGuestsToCloud(customer, syncedList).catch(() => {});
     }
 
     const rsvpMap = new Map<string, Rsvp>();
@@ -955,8 +996,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const effectiveBase = cleanBase || previewBaseUrl.replace(/\/+$/, '');
 
     return guests.map((guest) => {
+      const cleanName = guest.name.trim();
       const quota = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
-      const code = currentCodes[guest.name.trim()] || encodeGuestCode(guest.name, quota);
+      const code = currentCodes[cleanName] || guest.code || encodeGuestCode(cleanName, quota);
       const separator = effectiveBase.includes('?') ? '&' : '?';
 
       // Link acak kini murni kode rahasia (?c=...) tanpa membocorkan parameter &pax=
