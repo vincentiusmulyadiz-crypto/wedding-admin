@@ -884,8 +884,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const currentCodes: Record<string, string> = { ...savedCodes };
 
     guests.forEach((g) => {
-      if (!currentCodes[g.name]) {
-        currentCodes[g.name] = encodeGuestCode(g.name);
+      const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
+      const codeKey = `${g.name}_${quota}`;
+      if (!currentCodes[codeKey]) {
+        currentCodes[codeKey] = encodeGuestCode(g.name, quota);
         codesUpdated = true;
       }
     });
@@ -907,19 +909,37 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const effectiveBase = cleanBase || previewBaseUrl.replace(/\/+$/, '');
 
     return guests.map((guest) => {
-      const code = currentCodes[guest.name] || encodeGuestCode(guest.name);
-      const separator = effectiveBase.includes('?') ? '&' : '?';
       const quota = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
-      const paxParam = `&pax=${quota}`;
+      const codeKey = `${guest.name}_${quota}`;
+      const code = currentCodes[codeKey] || currentCodes[guest.name] || encodeGuestCode(guest.name, quota);
+      const separator = effectiveBase.includes('?') ? '&' : '?';
 
+      // Link acak kini murni kode rahasia (?c=...) tanpa membocorkan parameter &pax=
+      // Jumlah pax sudah terenkripsi aman di dalam kode acak tersebut
       const link =
         linkFormat === 'random'
-          ? `${effectiveBase}${separator}c=${code}${paxParam}`
-          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}${paxParam}`;
+          ? `${effectiveBase}${separator}c=${code}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}`;
 
-      const lowerName = guest.name.toLowerCase();
+      const lowerName = guest.name.trim().toLowerCase();
       const lowerCode = code.toLowerCase();
-      const rsvpRow = rsvpMap.get(lowerName) || rsvpMap.get(lowerCode);
+      let rsvpRow = rsvpMap.get(lowerName) || rsvpMap.get(lowerCode);
+
+      // Fallback matching: jika tamu di masa lalu mengubah nama (misal "Budi Santoso & Istri" vs "Budi Santoso")
+      if (!rsvpRow && existingRsvps.length > 0) {
+        rsvpRow = existingRsvps.find((r) => {
+          if (!r.name) return false;
+          const rName = r.name.trim().toLowerCase();
+          if (r.guest_param && (r.guest_param.trim().toLowerCase() === lowerName || r.guest_param.toLowerCase() === lowerCode)) {
+            return true;
+          }
+          if (rName.startsWith(lowerName) || lowerName.startsWith(rName)) {
+            return true;
+          }
+          return false;
+        });
+      }
+
       const isRsvped = Boolean(rsvpRow);
 
       const openedAt = guest.opened_at || guestOpensMap.get(code) || guestOpensMap.get(lowerName) || null;

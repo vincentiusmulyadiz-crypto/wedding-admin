@@ -26,13 +26,15 @@ function base64UrlDecode(str: string): Uint8Array {
   return bytes;
 }
 
-export function encodeGuestCode(name: string): string {
+export function encodeGuestCode(name: string, pax?: number): string {
   if (!name || !name.trim()) return '';
+  const cleanName = name.trim();
+  const payload = pax && pax > 0 ? `${cleanName}:::${pax}` : cleanName;
   const salt = Math.floor(Math.random() * 0xffff)
     .toString(16)
     .padStart(4, '0');
   const saltNum = parseInt(salt, 16);
-  const bytes = new TextEncoder().encode(name.trim());
+  const bytes = new TextEncoder().encode(payload);
   const scrambled = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) {
     const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
@@ -41,7 +43,12 @@ export function encodeGuestCode(name: string): string {
   return salt + base64UrlEncode(scrambled);
 }
 
-export function decodeGuestCode(code: string | null | undefined): string | null {
+export interface DecodedGuestInfo {
+  name: string;
+  pax?: number;
+}
+
+export function decodeGuestInfo(code: string | null | undefined): DecodedGuestInfo | null {
   if (!code || typeof code !== 'string') return null;
   const clean = code.trim();
   if (clean.length < 5) return null;
@@ -58,8 +65,20 @@ export function decodeGuestCode(code: string | null | undefined): string | null 
       bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
     }
     const decoded = new TextDecoder().decode(bytes).trim();
-    return decoded || null;
+    if (!decoded) return null;
+    if (decoded.includes(':::')) {
+      const parts = decoded.split(':::');
+      const name = parts[0].trim();
+      const pax = parseInt(parts[1], 10);
+      return { name, pax: isNaN(pax) ? undefined : pax };
+    }
+    return { name: decoded };
   } catch {
     return null;
   }
+}
+
+export function decodeGuestCode(code: string | null | undefined): string | null {
+  const info = decodeGuestInfo(code);
+  return info ? info.name : null;
 }
