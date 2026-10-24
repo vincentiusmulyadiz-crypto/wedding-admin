@@ -13,7 +13,7 @@ function base64UrlEncode(bytes: Uint8Array): string {
     .replace(/=+$/, '');
 }
 
-function base64UrlDecode(str: string): Uint8Array {
+export function base64UrlDecode(str: string): Uint8Array {
   let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
   while (base64.length % 4) {
     base64 += '=';
@@ -26,15 +26,15 @@ function base64UrlDecode(str: string): Uint8Array {
   return bytes;
 }
 
-export function encodeGuestCode(name: string, pax?: number): string {
+export function encodeGuestCode(name: string): string {
   if (!name || !name.trim()) return '';
+  // Selalu enkripsi nama murni saja agar tidak pernah memunculkan angka/::: di layar sapaan template
   const cleanName = name.trim();
-  const payload = pax && pax > 0 ? `${cleanName}:::${pax}` : cleanName;
   const salt = Math.floor(Math.random() * 0xffff)
     .toString(16)
     .padStart(4, '0');
   const saltNum = parseInt(salt, 16);
-  const bytes = new TextEncoder().encode(payload);
+  const bytes = new TextEncoder().encode(cleanName);
   const scrambled = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) {
     const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
@@ -43,12 +43,7 @@ export function encodeGuestCode(name: string, pax?: number): string {
   return salt + base64UrlEncode(scrambled);
 }
 
-export interface DecodedGuestInfo {
-  name: string;
-  pax?: number;
-}
-
-export function decodeGuestInfo(code: string | null | undefined): DecodedGuestInfo | null {
+export function decodeGuestCode(code: string | null | undefined): string | null {
   if (!code || typeof code !== 'string') return null;
   const clean = code.trim();
   if (clean.length < 5) return null;
@@ -64,21 +59,14 @@ export function decodeGuestInfo(code: string | null | undefined): DecodedGuestIn
       const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
       bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
     }
-    const decoded = new TextDecoder().decode(bytes).trim();
+    let decoded = new TextDecoder().decode(bytes).trim();
     if (!decoded) return null;
+    // Bersihkan jika ada format :::pax dari kode sebelumnya agar nama selalu murni tanpa angka
     if (decoded.includes(':::')) {
-      const parts = decoded.split(':::');
-      const name = parts[0].trim();
-      const pax = parseInt(parts[1], 10);
-      return { name, pax: isNaN(pax) ? undefined : pax };
+      decoded = decoded.split(':::')[0].trim();
     }
-    return { name: decoded };
+    return decoded || null;
   } catch {
     return null;
   }
-}
-
-export function decodeGuestCode(code: string | null | undefined): string | null {
-  const info = decodeGuestInfo(code);
-  return info ? info.name : null;
 }

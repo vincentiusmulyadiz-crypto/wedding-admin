@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
-import { encodeGuestCode } from '../lib/guestCode';
+import { encodeGuestCode, base64UrlDecode } from '../lib/guestCode';
 import { normalizePhoneNumber, formatPhoneNumber } from '../lib/format';
 import { showToast } from '../lib/toast';
 import {
@@ -884,10 +884,31 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const currentCodes: Record<string, string> = { ...savedCodes };
 
     guests.forEach((g) => {
-      const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
-      const codeKey = `${g.name}_${quota}`;
-      if (!currentCodes[codeKey]) {
-        currentCodes[codeKey] = encodeGuestCode(g.name, quota);
+      const cleanName = g.name.trim();
+      const existing = currentCodes[cleanName];
+      let needsNew = !existing;
+      if (existing) {
+        try {
+          // Bersihkan cache kode lama jika sebelumnya pernah mengandung ':::'
+          const salt = existing.slice(0, 4);
+          const b64 = existing.slice(4);
+          const saltNum = parseInt(salt, 16);
+          const scrambled = base64UrlDecode(b64);
+          const bytes = new Uint8Array(scrambled.length);
+          for (let i = 0; i < bytes.length; i++) {
+            const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
+            bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
+          }
+          const raw = new TextDecoder().decode(bytes);
+          if (raw.includes(':::') || raw.trim() !== cleanName) {
+            needsNew = true;
+          }
+        } catch {
+          needsNew = true;
+        }
+      }
+      if (needsNew) {
+        currentCodes[cleanName] = encodeGuestCode(cleanName);
         codesUpdated = true;
       }
     });
@@ -910,12 +931,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
     return guests.map((guest) => {
       const quota = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
-      const codeKey = `${guest.name}_${quota}`;
-      const code = currentCodes[codeKey] || currentCodes[guest.name] || encodeGuestCode(guest.name, quota);
+      const code = currentCodes[guest.name] || encodeGuestCode(guest.name);
       const separator = effectiveBase.includes('?') ? '&' : '?';
 
       // Link acak kini murni kode rahasia (?c=...) tanpa membocorkan parameter &pax=
-      // Jumlah pax sudah terenkripsi aman di dalam kode acak tersebut
       const link =
         linkFormat === 'random'
           ? `${effectiveBase}${separator}c=${code}`
