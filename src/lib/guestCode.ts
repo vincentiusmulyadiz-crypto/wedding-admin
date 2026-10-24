@@ -1,5 +1,9 @@
 /**
- * Utility for encoding and decoding guest names to/from random-looking URL-safe codes.
+ * Utility for encoding and decoding guest names + quota to/from random-looking URL-safe codes.
+ * Quota (1..10) is embedded inside the 4-char hex salt (h2 = signature nibble, h3 = quota nibble)
+ * so that:
+ * 1) The URL never exposes `&pax=...` when using random code links (`?c=...`).
+ * 2) Even legacy decoders that only decode the XORed payload see 100% pure `name` without `:::pax`.
  */
 
 function base64UrlEncode(bytes: Uint8Array): string {
@@ -26,13 +30,21 @@ export function base64UrlDecode(str: string): Uint8Array {
   return bytes;
 }
 
-export function encodeGuestCode(name: string): string {
+export function encodeGuestCode(name: string, maxGuests?: number): string {
   if (!name || !name.trim()) return '';
   // Selalu enkripsi nama murni saja agar tidak pernah memunculkan angka/::: di layar sapaan template
   const cleanName = name.trim();
-  const salt = Math.floor(Math.random() * 0xffff)
-    .toString(16)
-    .padStart(4, '0');
+  const quota =
+    typeof maxGuests === 'number' && !isNaN(maxGuests) && maxGuests >= 1 && maxGuests <= 10
+      ? Math.floor(maxGuests)
+      : 2;
+
+  const h0 = Math.floor(Math.random() * 15) + 1; // 1..15
+  const h1 = Math.floor(Math.random() * 15) + 1; // 1..15
+  const h2 = (h0 ^ h1 ^ 0xa) & 0xf;
+  const h3 = (h0 + h1 + quota) & 0xf;
+
+  const salt = h0.toString(16) + h1.toString(16) + h2.toString(16) + h3.toString(16);
   const saltNum = parseInt(salt, 16);
   const bytes = new TextEncoder().encode(cleanName);
   const scrambled = new Uint8Array(bytes.length);
@@ -66,6 +78,44 @@ export function decodeGuestCode(code: string | null | undefined): string | null 
       decoded = decoded.split(':::')[0].trim();
     }
     return decoded || null;
+  } catch {
+    return null;
+  }
+}
+
+export function decodeGuestQuota(code: string | null | undefined): number | null {
+  if (!code || typeof code !== 'string') return null;
+  const clean = code.trim();
+  if (clean.length < 5) return null;
+  const salt = clean.slice(0, 4);
+  const b64 = clean.slice(4);
+  const saltNum = parseInt(salt, 16);
+  if (isNaN(saltNum)) return null;
+
+  try {
+    const scrambled = base64UrlDecode(b64);
+    const bytes = new Uint8Array(scrambled.length);
+    for (let i = 0; i < scrambled.length; i++) {
+      const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
+      bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
+    }
+    const raw = new TextDecoder().decode(bytes).trim();
+    if (raw.includes(':::')) {
+      const q = parseInt(raw.split(':::')[1], 10);
+      if (!isNaN(q) && q >= 1 && q <= 10) return q;
+    }
+
+    const h0 = parseInt(salt[0], 16);
+    const h1 = parseInt(salt[1], 16);
+    const h2 = parseInt(salt[2], 16);
+    const h3 = parseInt(salt[3], 16);
+    if (!isNaN(h0) && !isNaN(h1) && !isNaN(h2) && !isNaN(h3)) {
+      if (h2 === ((h0 ^ h1 ^ 0xa) & 0xf)) {
+        const q = (h3 - h0 - h1 + 32) & 0xf;
+        if (q >= 1 && q <= 10) return q;
+      }
+    }
+    return null;
   } catch {
     return null;
   }

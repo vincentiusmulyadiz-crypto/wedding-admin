@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
-import { encodeGuestCode, base64UrlDecode } from '../lib/guestCode';
+import { encodeGuestCode, decodeGuestCode, decodeGuestQuota, base64UrlDecode } from '../lib/guestCode';
 import { normalizePhoneNumber, formatPhoneNumber } from '../lib/format';
 import { showToast } from '../lib/toast';
 import {
@@ -426,7 +426,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
           phone: g.phone || '',
           code: g.code,
           opened_at: g.opened_at || null,
-          max_guests: localQuotaMap.get(g.name) || 2,
+          max_guests: localQuotaMap.get(g.name) || decodeGuestQuota(g.code) || 2,
         }));
       }
     } catch {
@@ -484,13 +484,22 @@ export const saveGuestsToCloud = async (
     try {
       await supabase.from('guests').delete().eq('customer_id', cust.id);
       if (guestList.length > 0) {
-        const rows = guestList.map((g) => ({
-          customer_id: cust.id,
-          name: g.name,
-          phone: g.phone || '',
-          code: g.code || encodeGuestCode(g.name),
-          opened_at: g.opened_at || null,
-        }));
+        const rows = guestList.map((g) => {
+          const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
+          const validCode =
+            g.code &&
+            decodeGuestCode(g.code) === g.name.trim() &&
+            decodeGuestQuota(g.code) === quota
+              ? g.code
+              : encodeGuestCode(g.name, quota);
+          return {
+            customer_id: cust.id,
+            name: g.name,
+            phone: g.phone || '',
+            code: validCode,
+            opened_at: g.opened_at || null,
+          };
+        });
         await supabase.from('guests').insert(rows);
       }
     } catch {
@@ -885,11 +894,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
     guests.forEach((g) => {
       const cleanName = g.name.trim();
-      const existing = currentCodes[cleanName];
+      const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
+      const existing = currentCodes[cleanName] || g.code;
       let needsNew = !existing;
       if (existing) {
         try {
-          // Bersihkan cache kode lama jika sebelumnya pernah mengandung ':::'
+          // Bersihkan cache kode lama jika sebelumnya pernah mengandung ':::' atau kuota berubah
           const salt = existing.slice(0, 4);
           const b64 = existing.slice(4);
           const saltNum = parseInt(salt, 16);
@@ -900,7 +910,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
           }
           const raw = new TextDecoder().decode(bytes);
-          if (raw.includes(':::') || raw.trim() !== cleanName) {
+          if (
+            raw.includes(':::') ||
+            raw.trim() !== cleanName ||
+            decodeGuestQuota(existing) !== quota
+          ) {
             needsNew = true;
           }
         } catch {
@@ -908,13 +922,24 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         }
       }
       if (needsNew) {
-        currentCodes[cleanName] = encodeGuestCode(cleanName);
+        currentCodes[cleanName] = encodeGuestCode(cleanName, quota);
         codesUpdated = true;
       }
     });
 
     if (codesUpdated) {
       localStorage.setItem(codesStorageKey, JSON.stringify(currentCodes));
+      // Sinkronkan juga ke tabel public.guests agar kode dengan kuota terbaru tersimpan di cloud
+      const syncedList = guests.map((g) => {
+        const cleanName = g.name.trim();
+        const quota = g.max_guests && g.max_guests > 0 ? g.max_guests : 2;
+        return {
+          ...g,
+          code: currentCodes[cleanName] || encodeGuestCode(cleanName, quota),
+        };
+      });
+      saveGuestsForCustomer(customer, syncedList, userId || undefined);
+      saveGuestsToCloud(customer, syncedList).catch(() => {});
     }
 
     const rsvpMap = new Map<string, Rsvp>();
@@ -931,7 +956,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
     return guests.map((guest) => {
       const quota = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
-      const code = currentCodes[guest.name] || encodeGuestCode(guest.name);
+      const code = currentCodes[guest.name.trim()] || encodeGuestCode(guest.name, quota);
       const separator = effectiveBase.includes('?') ? '&' : '?';
 
       // Link acak kini murni kode rahasia (?c=...) tanpa membocorkan parameter &pax=
@@ -1066,6 +1091,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       name: trimmed,
       phone: quickPhone.trim(),
       max_guests: quickMaxGuests,
+      code: encodeGuestCode(trimmed, quickMaxGuests),
     };
 
     const nextList = [newGuest, ...guests];
@@ -1107,7 +1133,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     if (editingGuest) {
       nextList = guests.map((g) =>
         g.id === editingGuest.id
-          ? { ...g, name: trimmedName, phone: inputPhone.trim(), max_guests: inputMaxGuests }
+          ? {
+              ...g,
+              name: trimmedName,
+              phone: inputPhone.trim(),
+              max_guests: inputMaxGuests,
+              code: encodeGuestCode(trimmedName, inputMaxGuests),
+            }
           : g
       );
       showToast(`Data "${trimmedName}" berhasil diperbarui`, 'success');
@@ -1117,6 +1149,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         name: trimmedName,
         phone: inputPhone.trim(),
         max_guests: inputMaxGuests,
+        code: encodeGuestCode(trimmedName, inputMaxGuests),
       };
       nextList = [newGuest, ...guests];
       showToast(`Tamu "${trimmedName}" berhasil ditambahkan`, 'success');
@@ -1203,6 +1236,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         name,
         phone,
         max_guests: maxGuests,
+        code: encodeGuestCode(name, maxGuests),
       };
     });
 
