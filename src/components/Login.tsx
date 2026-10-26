@@ -44,32 +44,32 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#061C26] via-[#0E435A] to-[#08222E] text-[#0d2e37] selection:bg-[#cfe6ec] selection:text-[#0b2931]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#f9f6ee] text-[#0d2e37] selection:bg-[#cfe6ec] selection:text-[#0b2931]">
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-[#092B3A]/85 border border-[#DFD0B8]/40 shadow-2xl backdrop-blur-md">
+          <div className="inline-block">
             <img
               src="/logo-joyever-clean.png"
               alt="Joyever Logo"
-              className="h-10 sm:h-12 w-auto object-contain filter drop-shadow-md"
+              className="h-10 sm:h-12 w-auto mx-auto object-contain"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = logo;
               }}
             />
           </div>
           <div>
-            <h1 className="font-bold text-2xl sm:text-3xl tracking-tight text-[#FAF6EC] drop-shadow-sm">
+            <h1 className="font-bold text-2xl sm:text-3xl tracking-tight text-[#0E435A]">
               RSVP Dashboard
             </h1>
-            <p className="text-xs text-[#DFD0B8]/85 tracking-wider uppercase mt-1">
+            <p className="text-xs text-[#5e7d87] tracking-wider uppercase mt-1">
               Admin Undangan Digital Pernikahan
             </p>
           </div>
         </div>
 
         {/* Form Card */}
-        <div className="bg-[#fffdfa] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 shadow-2xl">
+        <div className="bg-[#fffdfa] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 shadow-xl">
           {errorMessage && (
             <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs leading-relaxed flex items-start gap-2.5">
               <span className="font-bold shrink-0">✕</span>

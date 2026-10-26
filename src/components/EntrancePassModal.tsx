@@ -85,52 +85,34 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 2. Draw Top Banner Photo
-      const bannerHeight = 220;
+      // 2. Draw Top Luxury Header
+      const bannerHeight = 160;
       ctx.save();
       ctx.beginPath();
       ctx.roundRect(30, 30, canvas.width - 60, bannerHeight, [28, 28, 0, 0]);
       ctx.clip();
 
-      const bannerImg = new Image();
-      bannerImg.crossOrigin = 'anonymous';
-
-      await new Promise<void>((resolve) => {
-        bannerImg.onload = () => {
-          ctx.drawImage(bannerImg, 30, 30, canvas.width - 60, bannerHeight);
-          resolve();
-        };
-        bannerImg.onerror = () => {
-          const grad = ctx.createLinearGradient(0, 30, 0, bannerHeight + 30);
-          grad.addColorStop(0, '#1c1917');
-          grad.addColorStop(1, '#292524');
-          ctx.fillStyle = grad;
-          ctx.fillRect(30, 30, canvas.width - 60, bannerHeight);
-          resolve();
-        };
-        bannerImg.src = '/wedding-cover.jpg';
-      });
-
-      // Dark gradient overlay
-      const darkGrad = ctx.createLinearGradient(0, 30, 0, bannerHeight + 30);
-      darkGrad.addColorStop(0, 'rgba(0,0,0,0.3)');
-      darkGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
-      ctx.fillStyle = darkGrad;
+      const bgGrad = ctx.createLinearGradient(0, 30, 0, bannerHeight + 30);
+      bgGrad.addColorStop(0, '#0E435A');
+      bgGrad.addColorStop(1, '#072430');
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(30, 30, canvas.width - 60, bannerHeight);
 
-      // Pill Badge on Banner
-      ctx.fillStyle = '#18181B';
+      // Gold Badge Pill on Header
+      ctx.fillStyle = '#DFD0B8';
       ctx.beginPath();
-      ctx.roundRect(55, 55, 170, 36, 18);
+      ctx.roundRect(canvas.width / 2 - 110, 60, 220, 38, 19);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
 
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 12px Arial, Helvetica, sans-serif';
+      ctx.fillStyle = '#0E435A';
+      ctx.font = 'bold 13px Arial, Helvetica, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(categoryBadge, 140, 78);
+      ctx.fillText(categoryBadge, canvas.width / 2, 84);
+
+      // Subtitle "JOYEVER DIGITAL PASS"
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.font = 'bold 11px Arial, Helvetica, sans-serif';
+      ctx.fillText('JOYEVER DIGITAL PASS', canvas.width / 2, 125);
       ctx.restore();
 
       // 3. Card Body Header
@@ -139,24 +121,24 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       // Subtitle
       ctx.fillStyle = '#71717A';
       ctx.font = 'bold 13px Arial, Helvetica, sans-serif';
-      ctx.fillText('ENTRANCE PASS', canvas.width / 2, 290);
+      ctx.fillText('ENTRANCE PASS', canvas.width / 2, 230);
 
       // Couple Names
       ctx.fillStyle = '#18181B';
       ctx.font = 'bold 28px Arial, Helvetica, sans-serif';
-      ctx.fillText(coupleTitle, canvas.width / 2, 330);
+      ctx.fillText(coupleTitle, canvas.width / 2, 270);
 
       // Venue & Date
       ctx.fillStyle = '#52525B';
       ctx.font = '14px Arial, Helvetica, sans-serif';
-      ctx.fillText(venueDate, canvas.width / 2, 360);
+      ctx.fillText(venueDate, canvas.width / 2, 300);
 
       // Divider
       ctx.strokeStyle = '#E4E4E7';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(70, 390);
-      ctx.lineTo(canvas.width - 70, 390);
+      ctx.moveTo(70, 330);
+      ctx.lineTo(canvas.width - 70, 330);
       ctx.stroke();
 
       // 4. Draw QR Code
@@ -167,7 +149,7 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         qrImg.onload = () => {
           const qrSize = 310;
           const qrX = (canvas.width - qrSize) / 2;
-          const qrY = 415;
+          const qrY = 360;
 
           ctx.strokeStyle = '#18181B';
           ctx.lineWidth = 2;
@@ -185,15 +167,15 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       // 5. Guest Salutation & Details
       ctx.fillStyle = '#18181B';
       ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 795);
+      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 740);
 
       ctx.fillStyle = '#52525B';
       ctx.font = '15px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Valid for (${maxGuests}) person(s)`, canvas.width / 2, 830);
+      ctx.fillText(`Valid for (${maxGuests}) person(s)`, canvas.width / 2, 775);
 
       ctx.fillStyle = '#71717A';
       ctx.font = 'bold 14px "Courier New", monospace';
-      ctx.fillText(passId, canvas.width / 2, 862);
+      ctx.fillText(passId, canvas.width / 2, 807);
 
       if (assignedTableText) {
         ctx.fillStyle = '#0E435A';
@@ -230,33 +212,24 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         className="relative w-full max-w-[360px] sm:max-w-[400px] bg-white text-zinc-900 rounded-3xl overflow-hidden shadow-2xl text-left font-arial border border-zinc-200/80"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Header Photo Banner */}
-        <div className="relative h-32 sm:h-36 w-full overflow-hidden bg-zinc-900">
-          <img
-            src="/wedding-cover.jpg"
-            alt="Venue Preview"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80';
-            }}
-            className="w-full h-full object-cover object-center filter brightness-90"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
-
-          {/* Top Left Category Pill */}
-          <div className="absolute top-3.5 left-3.5 px-3 py-1 bg-zinc-900/90 text-white text-[11px] sm:text-xs font-bold tracking-wide rounded-full backdrop-blur-md border border-white/30 uppercase shadow-xs">
+        {/* Top Luxury Joyever Header */}
+        <div className="relative bg-gradient-to-b from-[#0E435A] to-[#072430] py-5 px-6 text-center text-white">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#DFD0B8] text-[#0E435A] text-[11px] sm:text-xs font-extrabold tracking-wider rounded-full uppercase shadow-xs mb-1.5">
             {categoryBadge}
           </div>
+          <p className="text-[10px] tracking-widest uppercase font-bold text-white/60">
+            Joyever Digital Access Pass
+          </p>
 
           {/* Top Right Close Button */}
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3.5 right-3.5 w-8 h-8 flex items-center justify-center bg-black/60 hover:bg-black text-white rounded-full transition cursor-pointer shadow-md"
+            className="absolute top-3.5 right-3.5 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition cursor-pointer shadow-md"
             title="Tutup (Esc)"
             aria-label="Tutup"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
