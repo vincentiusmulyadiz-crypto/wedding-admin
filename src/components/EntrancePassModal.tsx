@@ -195,7 +195,11 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       ctx.font = 'bold 14px "Courier New", monospace';
       ctx.fillText(passId, canvas.width / 2, 807);
 
-      if (assignedTableText) {
+      if (
+        assignedTableText &&
+        !assignedTableText.toLowerCase().includes('bebas') &&
+        !assignedTableText.toLowerCase().includes('resepsi')
+      ) {
         ctx.fillStyle = '#0E435A';
         ctx.font = 'bold 15px Arial, Helvetica, sans-serif';
         const seatPart = assignedSeatText ? ` · Kursi ${assignedSeatText}` : '';
@@ -289,14 +293,16 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
               {passId}
             </p>
 
-            {assignedTableText && (
-              <div className="pt-1">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#faf5ec] text-[#0E435A] border border-[#e4d7c0] text-xs font-bold">
-                  Meja {assignedTableText}
-                  {assignedSeatText ? ` · Kursi ${assignedSeatText}` : ''}
-                </span>
-              </div>
-            )}
+            {assignedTableText &&
+              !assignedTableText.toLowerCase().includes('bebas') &&
+              !assignedTableText.toLowerCase().includes('resepsi') && (
+                <div className="pt-1">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#faf5ec] text-[#0E435A] border border-[#e4d7c0] text-xs font-bold">
+                    Meja {assignedTableText}
+                    {assignedSeatText ? ` · Kursi ${assignedSeatText}` : ''}
+                  </span>
+                </div>
+              )}
           </div>
 
           {/* Action Buttons */}
