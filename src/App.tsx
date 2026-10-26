@@ -236,7 +236,7 @@ export function App() {
           created_at: new Date().toISOString(),
         },
       } as unknown as Session);
-      setIsAdmin(true);
+      setIsAdmin(false);
       setCustomers([DEMO_CUSTOMER]);
       setSelectedCustomer(DEMO_CUSTOMER);
     });
