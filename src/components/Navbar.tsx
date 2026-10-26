@@ -11,9 +11,10 @@ import {
   Settings,
   Check,
   BookOpen,
+  Armchair,
 } from 'lucide-react';
 
-export type TabType = 'overview' | 'guests' | 'links' | 'tutorial' | 'customers';
+export type TabType = 'overview' | 'guests' | 'links' | 'tables' | 'tutorial' | 'customers';
 
 interface NavbarProps {
   customers: Customer[];
@@ -45,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'guests', label: 'Daftar Tamu', icon: <Users className="w-4 h-4" /> },
     { id: 'links', label: 'Tautan Tamu', icon: <MessageCircle className="w-4 h-4 text-emerald-600" /> },
+    { id: 'tables', label: 'Manajemen Meja', icon: <Armchair className="w-4 h-4 text-amber-500" /> },
     { id: 'tutorial', label: 'Tutorial', icon: <BookOpen className="w-4 h-4 text-teal-700" /> },
     ...(isAdmin
       ? [

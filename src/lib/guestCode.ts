@@ -120,3 +120,132 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
     return null;
   }
 }
+
+/**
+ * Generates the deterministic Pass ID matching the invitation's AccessCard.tsx
+ * (`VIP-2026-xxx`) so the QR code on the digital invitation matches the dashboard.
+ */
+export function generateGuestPassId(guestName: string): string {
+  const clean = (guestName || 'Guest').trim();
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = (hash << 5) - hash + clean.charCodeAt(i);
+    hash |= 0;
+  }
+  const numeric = Math.abs(hash % 900) + 100;
+  return `VIP-2026-${numeric}`;
+}
+
+/**
+ * Generates the clean joyever myqrcode URL requested by the user:
+ * joyever.id/myqrcode/[link undangan pasangan]/[kode barcode]
+ * Contoh: https://joyever.id/myqrcode/demo-joyfulday.joyever.id/380-6aac106eb14f4
+ */
+export function buildGuestPassUrl(params: {
+  slug?: string;
+  guestName: string;
+  code?: string;
+  passId?: string;
+  domain?: string;
+  invitationLink?: string;
+}): string {
+  let coupleLink =
+    params.invitationLink ||
+    params.domain ||
+    (params.slug ? `${params.slug}.joyever.id` : 'demo-joyfulday.joyever.id');
+
+  coupleLink = coupleLink.replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim();
+  if (!coupleLink.includes('.')) {
+    coupleLink = `${coupleLink}.joyever.id`;
+  }
+
+  const rawCode = params.code || encodeGuestCode(params.guestName);
+  const passId = params.passId || generateGuestPassId(params.guestName);
+  const numId = passId.replace(/\D/g, '') || '380';
+
+  return `https://joyever.id/myqrcode/${coupleLink}/${numId}-${rawCode}`;
+}
+
+export function parseGuestPassUrl(url: string): {
+  slug?: string;
+  domain?: string;
+  passId?: string;
+  code?: string;
+  guestName?: string;
+} | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+
+  try {
+    if (trimmed.includes('myqrcode/')) {
+      // Modern Joyever format: myqrcode/[link undangan]/[numeric-code]
+      const modernMatch = trimmed.match(/myqrcode\/([^/?#]+)\/(?:(?:VIP-2026-)?(\d+)-)?([A-Za-z0-9_-]+)/i);
+      if (modernMatch) {
+        const domain = modernMatch[1];
+        const numeric = modernMatch[2];
+        const code = modernMatch[3];
+        const passId = numeric ? `VIP-2026-${numeric}` : undefined;
+        const guestName = decodeGuestCode(code) || undefined;
+        const slug = domain.split('.')[0];
+        return { domain, slug, passId, code, guestName };
+      }
+
+      // Legacy format: myqrcode/richardbella.viding.co-948096-6aac106eb14f4
+      const legacyMatch = trimmed.match(/myqrcode\/([^.-]+)\.[^-]+-(\d+)-([A-Za-z0-9_-]+)/i);
+      if (legacyMatch) {
+        const slug = legacyMatch[1];
+        const numeric = legacyMatch[2];
+        const code = legacyMatch[3];
+        const passId = `VIP-2026-${numeric}`;
+        const guestName = decodeGuestCode(code) || undefined;
+        return { slug, passId, code, guestName };
+      }
+    }
+
+    if (trimmed.includes('?c=') || trimmed.includes('&c=')) {
+      const urlObj = new URL(trimmed.startsWith('http') ? trimmed : `https://joyever.id/${trimmed}`);
+      const code = urlObj.searchParams.get('c') || urlObj.searchParams.get('code') || undefined;
+      if (code) {
+        const guestName = decodeGuestCode(code) || undefined;
+        return { code, guestName };
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return null;
+}
+
+/**
+ * Builds the standard QR payload for a guest's Entrance Pass.
+ * Generates the clickable URL so camera scanner displays:
+ * https://joyever.id/myqrcode/demo-joyfulday.joyever.id/380-6aac106eb14f4
+ */
+export function buildGuestQrPayload(params: {
+  coupleNames?: string;
+  guestName: string;
+  code?: string;
+  passId?: string;
+  eventDate?: string;
+  maxGuests?: number;
+  category?: string;
+  tableName?: string;
+  slug?: string;
+  domain?: string;
+  invitationLink?: string;
+}): string {
+  const passId = params.passId || generateGuestPassId(params.guestName);
+  const coupleLink =
+    params.invitationLink ||
+    params.domain ||
+    (params.slug ? `${params.slug}.joyever.id` : 'demo-joyfulday.joyever.id');
+
+  return buildGuestPassUrl({
+    invitationLink: coupleLink,
+    slug: params.slug,
+    guestName: params.guestName,
+    code: params.code,
+    passId,
+  });
+}
+

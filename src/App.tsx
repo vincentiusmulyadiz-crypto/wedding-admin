@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { Customer } from './types/database';
 import { getSupabase } from './lib/supabase';
 import { Navbar, type TabType } from './components/Navbar';
@@ -6,9 +6,18 @@ import { Login } from './components/Login';
 import { OverviewTab } from './components/OverviewTab';
 import { GuestsTab } from './components/GuestsTab';
 import { GuestLinksTab } from './components/GuestLinksTab';
+import { TableManagementTab } from './components/TableManagementTab';
 import { TutorialTab } from './components/TutorialTab';
 import { CustomerAdminTab } from './components/CustomerAdminTab';
 import { ConfigModal } from './components/ConfigModal';
+import { EntrancePassModal } from './components/EntrancePassModal';
+import {
+  parseGuestPassUrl,
+  decodeGuestCode,
+  decodeGuestQuota,
+  generateGuestPassId,
+} from './lib/guestCode';
+import { DEMO_CUSTOMER } from './data/demoData';
 import {
   Loader2,
   Sparkles,
@@ -44,6 +53,34 @@ export function App() {
 
   // Global Toast state
   const [toasts, setToasts] = useState<ActiveToast[]>([]);
+
+  // Check if opened in Direct Entrance Pass View (?pass=... or ?c=... or /myqrcode)
+  const standalonePassInfo = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const url = window.location.href;
+    const params = new URLSearchParams(window.location.search);
+    const passQuery = params.get('pass');
+    const cQuery = params.get('c') || params.get('code');
+    const toQuery = params.get('to');
+
+    if (passQuery || cQuery || toQuery || url.includes('myqrcode/')) {
+      const parsed = parseGuestPassUrl(url);
+      const code = cQuery || parsed?.code || '';
+      const guestName =
+        toQuery || parsed?.guestName || (code ? decodeGuestCode(code) : null) || 'Tamu Undangan';
+      const quota = code ? decodeGuestQuota(code) : 2;
+      const passId = passQuery || parsed?.passId || generateGuestPassId(guestName);
+
+      return {
+        name: guestName,
+        code,
+        passId,
+        max_guests: quota || 2,
+        category: 'VIP',
+      };
+    }
+    return null;
+  }, []);
 
   useEffect(() => {
     const handleToastEvent = (e: Event) => {
@@ -226,6 +263,28 @@ export function App() {
     }
   };
 
+  // Direct Entrance Pass view
+  if (standalonePassInfo) {
+    const activeCust = selectedCustomer || customers[0] || DEMO_CUSTOMER;
+    return (
+      <div className="min-h-screen bg-stone-900 flex items-center justify-center p-4">
+        <EntrancePassModal
+          guest={standalonePassInfo}
+          customer={activeCust}
+          onClose={() => {
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('pass');
+            newUrl.searchParams.delete('c');
+            newUrl.searchParams.delete('code');
+            newUrl.searchParams.delete('to');
+            window.history.replaceState({}, '', newUrl.pathname);
+            window.location.reload();
+          }}
+        />
+      </div>
+    );
+  }
+
   // 1. Initial loading screen
   if (authLoading) {
     return (
@@ -398,6 +457,14 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 key={selectedCustomer.id || selectedCustomer.slug}
                 customer={selectedCustomer}
                 userEmail={session.user.email}
+                userId={session.user.id}
+              />
+            )}
+
+            {activeTab === 'tables' && (
+              <TableManagementTab
+                key={selectedCustomer.id || selectedCustomer.slug}
+                customer={selectedCustomer}
                 userId={session.user.id}
               />
             )}

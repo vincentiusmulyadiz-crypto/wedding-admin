@@ -14,6 +14,7 @@ export interface Customer {
   couple_names: string;
   event_date: string; // ISO date string (YYYY-MM-DD or timestamptz)
   owner_id: string;
+  domain?: string;
 }
 
 export interface Admin {
