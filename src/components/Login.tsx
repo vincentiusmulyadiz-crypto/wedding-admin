@@ -44,27 +44,32 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#f9f6ee] text-[#0d2e37] selection:bg-[#cfe6ec] selection:text-[#0b2931]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#061C26] via-[#0E435A] to-[#08222E] text-[#0d2e37] selection:bg-[#cfe6ec] selection:text-[#0b2931]">
       <div className="w-full max-w-md space-y-6">
+        {/* Brand Header */}
         <div className="text-center space-y-3">
-          <div className="inline-block p-1 rounded-2xl border border-[#d8cdb8] bg-[#ffffff] shadow-sm">
+          <div className="inline-flex items-center justify-center p-3 sm:p-3.5 rounded-2xl bg-[#092B3A]/85 border border-[#DFD0B8]/40 shadow-2xl backdrop-blur-md">
             <img
-              src={logo}
-              alt="joyever logo"
-              className="w-16 h-16 rounded-xl object-cover"
+              src="/logo-joyever-clean.png"
+              alt="Joyever Logo"
+              className="h-10 sm:h-12 w-auto object-contain filter drop-shadow-md"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = logo;
+              }}
             />
           </div>
           <div>
-            <h1 className="font-bold text-3xl tracking-tight text-[#0f3b47]">
-              joyever
+            <h1 className="font-bold text-2xl sm:text-3xl tracking-tight text-[#FAF6EC] drop-shadow-sm">
+              RSVP Dashboard
             </h1>
-            <p className="text-xs text-[#5d7c86] tracking-wider uppercase mt-0.5">
-              Admin Undangan Pernikahan
+            <p className="text-xs text-[#DFD0B8]/85 tracking-wider uppercase mt-1">
+              Admin Undangan Digital Pernikahan
             </p>
           </div>
         </div>
 
-        <div className="bg-[#fffdf8] border border-[#e3dac8] rounded-3xl p-6 md:p-8 shadow-md">
+        {/* Form Card */}
+        <div className="bg-[#fffdfa] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 shadow-2xl">
           {errorMessage && (
             <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs leading-relaxed flex items-start gap-2.5">
               <span className="font-bold shrink-0">✕</span>
@@ -86,7 +91,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
                   placeholder="admin@wedding.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#88a5ad] text-sm focus:outline-none focus:ring-2 focus:ring-[#0f3b47] focus:border-[#0f3b47] transition"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#88a5ad] text-sm focus:outline-none focus:ring-2 focus:ring-[#0E435A] focus:border-[#0E435A] transition"
                 />
               </div>
             </div>
@@ -104,7 +109,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#88a5ad] text-sm focus:outline-none focus:ring-2 focus:ring-[#0f3b47] focus:border-[#0f3b47] transition"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#faf6ee] border border-[#d8cdb8] text-[#0d2e37] placeholder-[#88a5ad] text-sm focus:outline-none focus:ring-2 focus:ring-[#0E435A] focus:border-[#0E435A] transition"
                 />
               </div>
             </div>
@@ -112,11 +117,11 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl font-bold text-sm text-[#fffdf8] bg-[#0f3b47] hover:bg-[#154e5e] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-sm"
+              className="w-full py-2.5 px-4 rounded-xl font-bold text-sm text-[#DFD0B8] bg-[#0E435A] hover:bg-[#144d66] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-[#d2ebf0]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#DFD0B8]" />
                   <span>Memeriksa kredensial...</span>
                 </>
               ) : (
@@ -130,7 +135,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onDemoLogin }) => {
             <button
               type="button"
               onClick={onDemoLogin}
-              className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e7dec8] border border-[#d8cdb8] active:scale-[0.99] transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-[#0E435A] bg-[#f0ebd9] hover:bg-[#e7dec8] border border-[#d8cdb8] active:scale-[0.99] transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
               <span>Masuk sebagai Akun Demo (Romeo & Juliet)</span>
