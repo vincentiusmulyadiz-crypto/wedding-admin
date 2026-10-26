@@ -184,7 +184,8 @@ export function parseGuestPassUrl(url: string): {
         const domain = modernMatch[1];
         const numeric = modernMatch[2];
         const code = modernMatch[3];
-        const passId = numeric ? `VIP-2026-${numeric}` : undefined;
+        const cleanNumeric = numeric && numeric.startsWith('2026') && numeric.length > 4 ? numeric.slice(4) : numeric;
+        const passId = cleanNumeric ? `VIP-2026-${cleanNumeric}` : undefined;
         const guestName = decodeGuestCode(code) || undefined;
         const slug = domain.split('.')[0];
         return { domain, slug, passId, code, guestName };

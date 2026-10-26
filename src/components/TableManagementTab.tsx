@@ -96,11 +96,23 @@ export const TableManagementTab: React.FC<TableManagementTabProps> = ({
     await saveGuestsToCloud(customer, nextGuests);
   };
 
+  const getNextAvailableCode = (pfx: string, excludeId?: string) => {
+    const existingCodes = new Set(
+      tables
+        .filter((t) => !excludeId || t.id !== excludeId)
+        .map((t) => (t.code || t.name || '').toUpperCase())
+    );
+    let idx = 1;
+    while (existingCodes.has(`${pfx}${idx}`)) {
+      idx++;
+    }
+    return `${pfx}${idx}`;
+  };
+
   const handleOpenAddTable = () => {
     setEditingTable(null);
     const pfx = getShapePrefix('round');
-    const existing = tables.filter((t) => (t.code || '').startsWith(pfx));
-    const code = `${pfx}${existing.length + 1}`;
+    const code = getNextAvailableCode(pfx);
     setTableName(code);
     setTableShape('round');
     setTableCapacity(8);
@@ -124,8 +136,7 @@ export const TableManagementTab: React.FC<TableManagementTabProps> = ({
   const handleSaveTable = async (e: React.FormEvent) => {
     e.preventDefault();
     const pfx = getShapePrefix(tableShape);
-    const existingCount = tables.filter((t) => (t.code || '').startsWith(pfx) && (!editingTable || t.id !== editingTable.id)).length;
-    const autoCode = `${pfx}${existingCount + 1}`;
+    const autoCode = getNextAvailableCode(pfx, editingTable?.id);
     const code = tableName.trim() || autoCode;
 
     let nextTables: WeddingTable[];
@@ -664,9 +675,7 @@ export const TableManagementTab: React.FC<TableManagementTabProps> = ({
                     type="button"
                     onClick={() => {
                       setTableShape('round');
-                      const pfx = 'A';
-                      const cnt = tables.filter((t) => (t.code || '').startsWith(pfx) && (!editingTable || t.id !== editingTable.id)).length;
-                      if (!editingTable) setTableName(`${pfx}${cnt + 1}`);
+                      if (!editingTable) setTableName(getNextAvailableCode('A'));
                     }}
                     className={`p-2.5 rounded-2xl border flex flex-col items-center gap-1 transition cursor-pointer ${
                       tableShape === 'round'
@@ -683,9 +692,7 @@ export const TableManagementTab: React.FC<TableManagementTabProps> = ({
                     type="button"
                     onClick={() => {
                       setTableShape('rect');
-                      const pfx = 'B';
-                      const cnt = tables.filter((t) => (t.code || '').startsWith(pfx) && (!editingTable || t.id !== editingTable.id)).length;
-                      if (!editingTable) setTableName(`${pfx}${cnt + 1}`);
+                      if (!editingTable) setTableName(getNextAvailableCode('B'));
                     }}
                     className={`p-2.5 rounded-2xl border flex flex-col items-center gap-1 transition cursor-pointer ${
                       tableShape === 'rect'
@@ -702,9 +709,7 @@ export const TableManagementTab: React.FC<TableManagementTabProps> = ({
                     type="button"
                     onClick={() => {
                       setTableShape('square');
-                      const pfx = 'C';
-                      const cnt = tables.filter((t) => (t.code || '').startsWith(pfx) && (!editingTable || t.id !== editingTable.id)).length;
-                      if (!editingTable) setTableName(`${pfx}${cnt + 1}`);
+                      if (!editingTable) setTableName(getNextAvailableCode('C'));
                     }}
                     className={`p-2.5 rounded-2xl border flex flex-col items-center gap-1 transition cursor-pointer ${
                       tableShape === 'square'

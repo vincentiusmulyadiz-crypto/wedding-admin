@@ -41,9 +41,27 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const categoryBadge = `${(guest.category || 'VIP').toUpperCase()} ACCESS PASS`;
   const maxGuests = guest.max_guests || 2;
   const coupleTitle = customer.couple_names || 'Romeo & Juliet';
-  const venueDate = customer.event_date
-    ? `The Grand Chapel Hall · ${customer.event_date}`
-    : 'The Grand Chapel Hall · Jumat, 16 Oktober 2026';
+
+  const lowerSlug = (customer.slug || '').toLowerCase();
+  const venueLabel = lowerSlug.includes('rima')
+    ? 'The Grand Ballroom Hall'
+    : lowerSlug.includes('indah')
+    ? 'The Heritage Hall at Plataran'
+    : 'The Grand Chapel Hall';
+
+  let formattedDate = customer.event_date || 'Jumat, 16 Oktober 2026';
+  if (customer.event_date && /^\d{4}-\d{2}-\d{2}/.test(customer.event_date)) {
+    const parsedDate = new Date(customer.event_date);
+    if (!isNaN(parsedDate.getTime())) {
+      formattedDate = parsedDate.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    }
+  }
+  const venueDate = `${venueLabel} · ${formattedDate}`;
 
   const assignedTableText = tableName || guest.tableName;
   const assignedSeatText = seatNumbers || guest.seat_numbers;
