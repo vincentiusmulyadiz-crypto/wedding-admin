@@ -38,7 +38,9 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const cleanName = guest.name || 'Tamu Undangan';
   const passId = guest.passId || generateGuestPassId(cleanName);
   const guestCode = guest.code || encodeGuestCode(cleanName, guest.max_guests || 2);
-  const categoryBadge = `${(guest.category || 'VIP').toUpperCase()} ACCESS PASS`;
+  const cleanCat = (guest.category || '').toUpperCase();
+  const isVipOrVvip = cleanCat === 'VIP' || cleanCat === 'VVIP';
+  const categoryBadge = isVipOrVvip ? `${cleanCat} ACCESS PASS` : 'ENTRANCE ACCESS PASS';
   const maxGuests = guest.max_guests || 2;
   const coupleTitle = customer.couple_names || 'Romeo & Juliet';
 
