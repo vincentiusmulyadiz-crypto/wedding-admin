@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, Copy, Check } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 import type { Customer } from '../types/database';
 import {
   buildGuestQrPayload,
@@ -34,7 +34,6 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   onClose,
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const cleanName = guest.name || 'Tamu Undangan';
   const passId = guest.passId || generateGuestPassId(cleanName);
@@ -66,12 +65,6 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=2&data=${encodeURIComponent(
     qrTargetUrl
   )}`;
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(qrTargetUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
 
   const handleDownloadCard = async () => {
     setIsDownloading(true);
@@ -192,7 +185,7 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       // 5. Guest Salutation & Details
       ctx.fillStyle = '#18181B';
       ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Dear Mr./Mrs./Ms. ${cleanName}`, canvas.width / 2, 795);
+      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 795);
 
       ctx.fillStyle = '#52525B';
       ctx.font = '15px Arial, Helvetica, sans-serif';
@@ -296,7 +289,7 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
           {/* Guest Details */}
           <div className="space-y-1 pt-1.5 border-t border-zinc-100">
             <p className="font-arial text-base sm:text-lg text-zinc-900 font-bold">
-              Dear Mr./Mrs./Ms. {cleanName}
+              Dear, {cleanName}
             </p>
             <p className="font-arial text-xs sm:text-sm text-zinc-600 font-medium">
               Valid for ({maxGuests}) person(s)
@@ -333,24 +326,6 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
             >
               Tutup
             </button>
-          </div>
-
-          {/* Scan Link Info */}
-          <div className="pt-2 border-t border-zinc-100 text-left">
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
-              <span>Link Barcode Scanner:</span>
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0E435A] hover:underline cursor-pointer"
-              >
-                {copiedLink ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-zinc-400" />}
-                {copiedLink ? 'Tersalin' : 'Salin Link'}
-              </button>
-            </div>
-            <p className="text-[10px] font-mono text-zinc-400 bg-zinc-50 p-1.5 rounded border border-zinc-200 break-all select-all">
-              {qrTargetUrl}
-            </p>
           </div>
         </div>
       </div>
