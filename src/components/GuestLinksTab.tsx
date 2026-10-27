@@ -1478,15 +1478,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
           <button
             type="button"
-            onClick={() => setShowTemplateModal(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
-          >
-            <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Template Pesan WhatsApp</span>
-          </button>
-
-          <button
-            type="button"
             onClick={handleCopyAllLinks}
             disabled={guests.length === 0}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] disabled:opacity-40 transition shadow-xs"
@@ -1685,12 +1676,21 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           </div>
 
           <div className="flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowTemplateModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
+              title="Ubah template kata-kata pesan WhatsApp untuk tamu"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Ubah Template Pesan WhatsApp</span>
+            </button>
 
             {guests.length > 0 && (
               <button
                 type="button"
                 onClick={handleClearAllGuests}
-                className="p-1.5 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 transition"
+                className="p-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 transition"
                 title="Kosongkan daftar tamu"
               >
                 <Trash2 className="w-3.5 h-3.5" />
