@@ -44,7 +44,6 @@ import {
   Crown,
   QrCode,
   Armchair,
-  ChevronDown,
 } from 'lucide-react';
 
 export interface InvitedGuest {
@@ -785,18 +784,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [showExtraMenu, setShowExtraMenu] = useState<boolean>(false);
-  const extraMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (extraMenuRef.current && !extraMenuRef.current.contains(e.target as Node)) {
-        setShowExtraMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const [editingGuest, setEditingGuest] = useState<InvitedGuest | null>(null);
   const [qrPreviewGuest, setQrPreviewGuest] = useState<any | null>(null);
@@ -810,6 +797,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickMaxGuests, setQuickMaxGuests] = useState<number>(2);
   const [quickCategory, setQuickCategory] = useState<GuestCategory>('Reguler');
   const [quickTableId, setQuickTableId] = useState<string>('');
+  const [quickGroup, setQuickGroup] = useState<string>('');
 
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
@@ -1273,6 +1261,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       phone: quickPhone.trim(),
       max_guests: quickMaxGuests,
       category: quickCategory,
+      group_name: hasQrCheckin && quickGroup.trim() ? quickGroup.trim() : undefined,
       table_id: quickTableId || undefined,
       code: encodeGuestCode(trimmed, quickMaxGuests),
     };
@@ -1283,6 +1272,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setQuickPhone('');
     setQuickMaxGuests(2);
     setQuickCategory('Reguler');
+    setQuickGroup('');
     setQuickTableId('');
     showToast(`Tamu "${trimmed}" (${quickCategory} • Jatah: ${quickMaxGuests} Tamu) berhasil ditambahkan!`, 'success');
   };
@@ -1296,19 +1286,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     showToast('Penempatan meja tamu berhasil diperbarui!', 'success');
   };
 
-  // Add / Edit Handlers for modal
-  const handleOpenAddModal = () => {
-    setInputName('');
-    setInputPhone('');
-    setInputMaxGuests(2);
-    setInputCategory('Reguler');
-    setInputGroup('');
-    setInputTableId('');
-    setFormError(null);
-    setEditingGuest(null);
-    setShowAddModal(true);
-  };
-
+  // Edit Handler for modal
   const handleOpenEditModal = (guest: InvitedGuest) => {
     setEditingGuest(guest);
     setInputName(guest.name);
@@ -1465,10 +1443,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             <span>Kirim Undangan via WhatsApp</span>
           </h1>
           <div className="flex flex-wrap items-center gap-2 mt-1">
-            <p className="text-xs text-[#52717b]">
-              Alur praktis 3 langkah untuk mengundang tamu secara personal
-            </p>
-            <span className="text-[#a5b9be]">•</span>
+            
             {syncStatus === 'saving' && (
               <span className="inline-flex items-center gap-1.5 text-[11px] text-teal-700 font-medium bg-teal-50 border border-teal-200/60 px-2 py-0.5 rounded-full">
                 <RotateCw className="w-3 h-3 animate-spin text-teal-600" />
@@ -1490,100 +1465,46 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           </div>
         </div>
 
-        {/* Aksi Sekunder: Dropdown Menu Gabungan & Refresh */}
-        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+        {/* Tombol Alat Undangan Melebar ke Samping di Atas Poin 1 */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleOpenBatchModal}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
+          >
+            <Upload className="w-3.5 h-3.5 text-[#0f3b47]" />
+            <span>Tempel Banyak Sekaligus</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowTemplateModal(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Template Pesan WhatsApp</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyAllLinks}
+            disabled={guests.length === 0}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] disabled:opacity-40 transition shadow-xs"
+          >
+            <Copy className="w-3.5 h-3.5 text-[#0f3b47]" />
+            <span>Salin Semua Tautan</span>
+          </button>
+
           <button
             type="button"
             onClick={fetchExistingRsvps}
-            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs"
+            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs ml-auto"
             title="Segarkan status konfirmasi tamu"
           >
             <RotateCw className={`w-4 h-4 ${loadingRsvps ? 'animate-spin' : ''}`} />
           </button>
-
-          {/* Menu Dropdown Gabungan: Form Lengkap, Import Massal, Template WA, Salin Semua */}
-          <div className="relative" ref={extraMenuRef}>
-            <button
-              type="button"
-              onClick={() => setShowExtraMenu(!showExtraMenu)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
-            >
-              <Sliders className="w-3.5 h-3.5 text-[#0f3b47]" />
-              <span>Menu & Alat Undangan</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showExtraMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showExtraMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-[#fffdfa] border border-[#ded4be] rounded-2xl shadow-xl z-30 p-1.5 space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExtraMenu(false);
-                    handleOpenAddModal();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0e2c34] hover:bg-[#f0ebd9] transition text-left"
-                >
-                  <UserPlus className="w-4 h-4 text-[#0f3b47] shrink-0" />
-                  <div>
-                    <div>+ Form Lengkap Tamu</div>
-                    <div className="text-[10px] text-[#6d8a93] font-normal">Input detail jatah & nomor kontak</div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExtraMenu(false);
-                    handleOpenBatchModal();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0f3b47] hover:bg-[#f0ebd9] transition text-left"
-                >
-                  <Upload className="w-4 h-4 text-[#0f3b47] shrink-0" />
-                  <div>
-                    <div>Tempel Banyak Sekaligus</div>
-                    <div className="text-[10px] text-[#6d8a93] font-normal">Import massal dari WA atau Excel</div>
-                  </div>
-                </button>
-
-                <div className="border-t border-[#ede5d4] my-1" />
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExtraMenu(false);
-                    setShowTemplateModal(true);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0e2c34] hover:bg-[#f0ebd9] transition text-left"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <div>
-                    <div>Template Pesan WhatsApp</div>
-                    <div className="text-[10px] text-[#6d8a93] font-normal">Atur kata-kata ajakan undangan</div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExtraMenu(false);
-                    handleCopyAllLinks();
-                  }}
-                  disabled={guests.length === 0}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0e2c34] hover:bg-[#f0ebd9] disabled:opacity-40 transition text-left"
-                >
-                  <Copy className="w-4 h-4 text-[#0f3b47] shrink-0" />
-                  <div>
-                    <div>Salin Semua Tautan Tamu</div>
-                    <div className="text-[10px] text-[#6d8a93] font-normal">Rekap seluruh link ke clipboard</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
-
-
 
       {/* LANGKAH 1: Tempel / Input Nama Tamu */}
       <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
@@ -1606,7 +1527,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             />
           </div>
 
-          <div className="sm:col-span-3">
+          <div className={hasQrCheckin ? "sm:col-span-2" : "sm:col-span-3"}>
             <div className="relative">
               <Phone className="w-3.5 h-3.5 text-[#819ea7] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1618,6 +1539,19 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               />
             </div>
           </div>
+
+          {hasQrCheckin && (
+            <div className="sm:col-span-2">
+              <input
+                type="text"
+                placeholder="Grup (contoh: Keluarga)"
+                value={quickGroup}
+                onChange={(e) => setQuickGroup(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                title="Grup / Keterangan Tamu (Khusus Akun QR Check-In)"
+              />
+            </div>
+          )}
 
           {hasQrCheckin && (
             <div className="sm:col-span-2">
@@ -1634,7 +1568,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           )}
 
-          <div className="sm:col-span-2">
+          <div className={hasQrCheckin ? "sm:col-span-2" : "sm:col-span-2"}>
             <select
               value={quickMaxGuests}
               onChange={(e) => setQuickMaxGuests(parseInt(e.target.value, 10) || 2)}
@@ -1650,14 +1584,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </select>
           </div>
 
-          <div className="sm:col-span-2">
+          <div className={hasQrCheckin ? "sm:col-span-1" : "sm:col-span-2"}>
             <button
               type="submit"
               disabled={!quickName.trim()}
               className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+              title="Tambahkan tamu ini ke daftar"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>+ Tambah</span>
+              <span className={hasQrCheckin ? "hidden xl:inline" : ""}>+ Tambah</span>
             </button>
           </div>
         </form>
@@ -1750,9 +1685,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           </div>
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="px-3 py-1 bg-[#f0ebd9] rounded-xl border border-[#ded4be] font-bold text-[#0e2c34]">
-              {totalGuests} Tamu ({unopenedCount} Belum Buka • {openedCount} Sudah Buka • {rsvpedCount} Konfirmasi)
-            </span>
 
             {guests.length > 0 && (
               <button
