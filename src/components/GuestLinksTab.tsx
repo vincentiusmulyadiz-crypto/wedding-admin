@@ -1751,7 +1751,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               <span>Daftar Tamu & Kirim via WhatsApp</span>
             </h2>
             <p className="text-xs text-[#52717b]">
-              Atur kategori tamu, penempatan meja, QR Entrance Pass, dan kirim WA dengan satu klik
+              {hasQrCheckin
+                ? 'Atur kategori tamu, penempatan meja, QR Entrance Pass, dan kirim WA dengan satu klik'
+                : 'Kelola daftar tamu, jatah kehadiran, dan kirim tautan undangan via WA dengan satu klik'}
             </p>
           </div>
 
@@ -1781,7 +1783,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama, nomor WA, grup, atau kode pass..."
+              placeholder={
+                hasQrCheckin
+                  ? 'Cari nama, nomor WA, grup, atau kode pass...'
+                  : 'Cari nama, nomor WA, atau grup...'
+              }
               className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
             {searchQuery && (
@@ -2022,15 +2028,17 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {isCopied ? <Check className="w-3.5 h-3.5 text-teal-700" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setQrPreviewGuest(guest)}
-                        className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e5dec8] px-2 py-0.5 rounded border border-[#d5c8ad] transition"
-                        title="Lihat Kode & QR Entrance Pass Tamu"
-                      >
-                        <QrCode className="w-3 h-3" />
-                        <span>{guest.passId}</span>
-                      </button>
+                      {hasQrCheckin && (
+                        <button
+                          type="button"
+                          onClick={() => setQrPreviewGuest(guest)}
+                          className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e5dec8] px-2 py-0.5 rounded border border-[#d5c8ad] transition"
+                          title="Lihat Kode & QR Entrance Pass Tamu"
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>{guest.passId}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -2078,8 +2086,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         )}
       </div>
 
-      {/* Modal Preview QR Pass Tamu */}
-      {qrPreviewGuest && (
+      {/* Modal Preview QR Pass Tamu (Hanya untuk akun yang mengaktifkan QR Check-In) */}
+      {hasQrCheckin && qrPreviewGuest && (
         <EntrancePassModal
           guest={{
             name: qrPreviewGuest.name,
