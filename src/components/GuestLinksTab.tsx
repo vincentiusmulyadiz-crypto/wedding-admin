@@ -814,7 +814,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterPhone, setFilterPhone] = useState<'all' | 'with_phone' | 'no_phone'>('all');
   const [filterCategory, setFilterCategory] = useState<'all' | GuestCategory>('all');
 
   // RSVP Status Check
@@ -1184,11 +1183,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         (g.group_name && g.group_name.toLowerCase().includes(query)) ||
         (g.passId && g.passId.toLowerCase().includes(query));
 
-      const matchPhone =
-        filterPhone === 'all' ||
-        (filterPhone === 'with_phone' && !!normalizePhoneNumber(g.phone)) ||
-        (filterPhone === 'no_phone' && !normalizePhoneNumber(g.phone));
-
       const matchCategory = filterCategory === 'all' || g.category === filterCategory;
 
       const matchStatus =
@@ -1197,14 +1191,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         (filterStatus === 'opened' && g.status === 'opened') ||
         (filterStatus === 'rsvped' && g.status === 'rsvped');
 
-      return matchSearch && matchPhone && matchCategory && matchStatus;
+      return matchSearch && matchCategory && matchStatus;
     });
-  }, [enrichedGuests, searchQuery, filterPhone, filterCategory, filterStatus]);
+  }, [enrichedGuests, searchQuery, filterCategory, filterStatus]);
 
   const totalGuests = guests.length;
-  const withPhoneCount = useMemo(() => {
-    return guests.filter((g) => !!normalizePhoneNumber(g.phone)).length;
-  }, [guests]);
   const unopenedCount = useMemo(() => {
     return enrichedGuests.filter((g) => g.status === 'unopened').length;
   }, [enrichedGuests]);
@@ -1741,73 +1732,17 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             )}
 
             <select
-              value={filterPhone}
-              onChange={(e) => setFilterPhone(e.target.value as any)}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
               className="px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-medium focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              title="Filter Status Undangan Tamu"
             >
-              <option value="all">Semua Kontak ({guests.length})</option>
-              <option value="with_phone">Ada Nomor WA ({withPhoneCount})</option>
-              <option value="no_phone">Belum Ada Nomor ({guests.length - withPhoneCount})</option>
+              <option value="all">Semua Status ({totalGuests})</option>
+              <option value="unopened">✉ Belum Dibuka ({unopenedCount})</option>
+              <option value="opened">👁 Sudah Dibuka (Belum RSVP) ({openedCount})</option>
+              <option value="rsvped">✓ Sudah Konfirmasi ({rsvpedCount})</option>
             </select>
           </div>
-        </div>
-
-        {/* Filter Status 3 Warna */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <button
-            type="button"
-            onClick={() => setFilterStatus('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-              filterStatus === 'all'
-                ? 'bg-[#0f3b47] text-white shadow-xs'
-                : 'bg-[#faf6ee] text-[#52717b] hover:bg-[#f0ebd9] border border-[#ded4be]'
-            }`}
-          >
-            <span>Semua</span>
-            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{totalGuests}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterStatus('unopened')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-              filterStatus === 'unopened'
-                ? 'bg-slate-700 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
-            }`}
-          >
-            <Mail className="w-3.5 h-3.5 text-slate-500" />
-            <span>Belum Dibuka</span>
-            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{unopenedCount}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterStatus('opened')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-              filterStatus === 'opened'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5 text-amber-600" />
-            <span>Sudah Dibuka (Belum RSVP)</span>
-            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{openedCount}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterStatus('rsvped')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-              filterStatus === 'rsvped'
-                ? 'bg-teal-700 text-white shadow-xs'
-                : 'bg-teal-50 text-teal-900 hover:bg-teal-100 border border-teal-300'
-            }`}
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-            <span>Sudah Konfirmasi</span>
-            <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px]">{rsvpedCount}</span>
-          </button>
         </div>
 
         {/* Daftar Tamu dengan Tombol WhatsApp sebagai Aksi Utama */}
