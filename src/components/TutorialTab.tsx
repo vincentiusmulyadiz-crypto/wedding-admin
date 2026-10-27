@@ -69,9 +69,9 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             <div className="w-7 h-7 rounded-xl bg-[#0f3b47] text-white flex items-center justify-center font-bold text-xs">
               1
             </div>
-            <h3 className="font-bold text-sm text-[#0e2c34]">Tempel Nama Tamu</h3>
+            <h3 className="font-bold text-sm text-[#0e2c34]">Tambah & Tempel Nama Tamu</h3>
             <p className="text-xs text-[#52717b] leading-relaxed">
-              Ketik nama tamu satu per satu, atau klik <strong>"Tempel Banyak Sekaligus"</strong> untuk menyalin seluruh daftar nama dan nomor HP dari WhatsApp atau Excel.
+              Ketik nama tamu & nomor WhatsApp lalu klik <strong>"Tambah Tamu"</strong>, atau klik tombol <strong>"Tempel Banyak Sekaligus"</strong> di bilah atas untuk menyalin daftar nama massal dari WhatsApp atau Excel.
             </p>
           </div>
 
@@ -80,9 +80,9 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             <div className="w-7 h-7 rounded-xl bg-[#0f3b47] text-white flex items-center justify-center font-bold text-xs">
               2
             </div>
-            <h3 className="font-bold text-sm text-[#0e2c34]">Cek Link Undangan</h3>
+            <h3 className="font-bold text-sm text-[#0e2c34]">Tautan Undangan Personal</h3>
             <p className="text-xs text-[#52717b] leading-relaxed">
-              Masukkan alamat link undangan Anda (misal: <code className="text-[#0e2c34] font-semibold">namapasangan.joyever.id</code>). Link personal khusus untuk masing-masing tamu akan otomatis terbuat.
+              Link undangan personal otomatis tercipta untuk tiap tamu. Anda juga dapat menyalin seluruh daftar tautan tamu sekaligus melalui tombol <strong>"Salin Semua Tautan"</strong> di bilah atas.
             </p>
           </div>
 
@@ -91,9 +91,20 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
               3
             </div>
-            <h3 className="font-bold text-sm text-emerald-950">Kirim via WhatsApp</h3>
+            <h3 className="font-bold text-sm text-emerald-950">Kirim WhatsApp & Atur Template</h3>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              Klik tombol hijau <strong>"Kirim via WhatsApp"</strong>. Chat WhatsApp akan langsung terbuka dengan template pesan sopan yang sudah menyertakan nama tamu dan link undangannya.
+              Klik tombol hijau <strong>"Kirim via WhatsApp"</strong> untuk mengirim pesan personal. Ingin mengubah redaksi kata-kata undangan? Klik tombol <strong>"Ubah Template Pesan WhatsApp"</strong> di samping judul langkah 3.
+            </p>
+          </div>
+        </div>
+
+        {/* Fitur Tambahan: Filter Status Undangan */}
+        <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] flex items-start gap-3 mt-2">
+          <CheckCircle2 className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold text-[#0e2c34]">Pantau Status Undangan dengan Dropdown Filter</h4>
+            <p className="text-xs text-[#52717b] leading-relaxed">
+              Gunakan dropdown filter status di atas daftar tamu untuk memantau tamu yang <strong>Belum Dibuka (✉)</strong>, <strong>Sudah Dibuka (👁)</strong>, maupun yang <strong>Sudah Konfirmasi (✓)</strong> tanpa perlu repot mencocokkan satu per satu.
             </p>
           </div>
         </div>
