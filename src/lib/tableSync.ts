@@ -151,19 +151,19 @@ export function saveStoredTables(cust: Customer, tables: WeddingTable[]): void {
 export function isQrCheckinEnabled(cust: Customer, cloudEnabled?: boolean | null): boolean {
   if (typeof cloudEnabled === 'boolean') return cloudEnabled;
   try {
-    const key = `joyever_qr_checkin_enabled_${cust.id || cust.slug}`;
-    const stored = localStorage.getItem(key);
-    if (stored !== null) return stored === 'true';
+    if (cust.id) {
+      const stored = localStorage.getItem(`joyever_qr_checkin_enabled_${cust.id}`);
+      if (stored !== null) return stored === 'true';
+    }
+    if (cust.slug) {
+      const stored = localStorage.getItem(`joyever_qr_checkin_enabled_${cust.slug}`);
+      if (stored !== null) return stored === 'true';
+    }
   } catch {}
 
   const lowerSlug = (cust.slug || '').toLowerCase();
-  // Known accounts with QR Check-In active
-  if (
-    lowerSlug.includes('indah') ||
-    lowerSlug.includes('rima') ||
-    lowerSlug === 'romeo-juliet' ||
-    (cust.id && cust.id.includes('demo'))
-  ) {
+  // Hanya akun demo yang default aktif QR Check-in. Akun pasangan riil default RSVP Saja sampai diaktifkan admin.
+  if (lowerSlug === 'romeo-juliet' || (cust.id && cust.id.includes('demo'))) {
     return true;
   }
   return false;
@@ -174,8 +174,13 @@ export async function setCustomerQrCheckinEnabled(
   enabled: boolean
 ): Promise<void> {
   try {
-    const key = `joyever_qr_checkin_enabled_${cust.id || cust.slug}`;
-    localStorage.setItem(key, String(enabled));
+    if (cust.id) localStorage.setItem(`joyever_qr_checkin_enabled_${cust.id}`, String(enabled));
+    if (cust.slug) localStorage.setItem(`joyever_qr_checkin_enabled_${cust.slug}`, String(enabled));
+    window.dispatchEvent(
+      new CustomEvent('joyever:qr-checkin-toggled', {
+        detail: { customerId: cust.id, slug: cust.slug, enabled },
+      })
+    );
   } catch {}
 
   if (!cust.id || cust.id.includes('demo')) return;

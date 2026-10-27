@@ -53,9 +53,17 @@ export function App() {
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
 
   // Check if active selected customer has QR Check-In service enabled
+  const [qrToggledTick, setQrToggledTick] = useState(0);
+
+  useEffect(() => {
+    const handleToggled = () => setQrToggledTick((t) => t + 1);
+    window.addEventListener('joyever:qr-checkin-toggled', handleToggled);
+    return () => window.removeEventListener('joyever:qr-checkin-toggled', handleToggled);
+  }, []);
+
   const hasQrCheckin = useMemo(
     () => (selectedCustomer ? isQrCheckinEnabled(selectedCustomer) : false),
-    [selectedCustomer]
+    [selectedCustomer, qrToggledTick]
   );
 
   useEffect(() => {
