@@ -148,16 +148,76 @@ export function saveStoredTables(cust: Customer, tables: WeddingTable[]): void {
   }
 }
 
+export function isQrCheckinEnabled(cust: Customer, cloudEnabled?: boolean | null): boolean {
+  if (typeof cloudEnabled === 'boolean') return cloudEnabled;
+  try {
+    const key = `joyever_qr_checkin_enabled_${cust.id || cust.slug}`;
+    const stored = localStorage.getItem(key);
+    if (stored !== null) return stored === 'true';
+  } catch {}
+
+  const lowerSlug = (cust.slug || '').toLowerCase();
+  // Known accounts with QR Check-In active
+  if (
+    lowerSlug.includes('indah') ||
+    lowerSlug.includes('rima') ||
+    lowerSlug === 'romeo-juliet' ||
+    (cust.id && cust.id.includes('demo'))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export async function setCustomerQrCheckinEnabled(
+  cust: Customer,
+  enabled: boolean
+): Promise<void> {
+  try {
+    const key = `joyever_qr_checkin_enabled_${cust.id || cust.slug}`;
+    localStorage.setItem(key, String(enabled));
+  } catch {}
+
+  if (!cust.id || cust.id.includes('demo')) return;
+
+  try {
+    const supabase = getSupabase();
+    const existing = await loadSharedConfigFromCloud(cust);
+    const payloadStr = JSON.stringify({
+      tables: existing.tables || [],
+      guestMeta: existing.guestMeta || {},
+      qrCheckinEnabled: enabled,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await supabase
+      .from('guests')
+      .delete()
+      .eq('customer_id', cust.id)
+      .eq('code', RESERVED_CONFIG_CODE);
+    await supabase.from('guests').insert({
+      customer_id: cust.id,
+      name: RESERVED_CONFIG_CODE,
+      code: RESERVED_CONFIG_CODE,
+      phone: payloadStr,
+    });
+  } catch (e) {
+    console.warn('Could not save qr checkin flag to cloud:', e);
+  }
+}
+
 /**
- * Loads shared config (tables + guest extended metadata) from public.guests reserved row
+ * Loads shared config (tables + guest extended metadata + qrCheckinEnabled) from public.guests reserved row
  * or user_metadata so both the couple and Joyever Ushers see the exact same tables & categories.
  */
 export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
   tables: WeddingTable[] | null;
   guestMeta: Record<string, GuestExtendedMeta>;
+  qrCheckinEnabled: boolean;
 }> {
   let tables: WeddingTable[] | null = null;
   let guestMeta: Record<string, GuestExtendedMeta> = {};
+  let qrCheckinEnabled = isQrCheckinEnabled(cust);
 
   try {
     const supabase = getSupabase();
@@ -180,6 +240,9 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
           }
           if (parsed && parsed.guestMeta && typeof parsed.guestMeta === 'object') {
             guestMeta = parsed.guestMeta;
+          }
+          if (parsed && typeof parsed.qrCheckinEnabled === 'boolean') {
+            qrCheckinEnabled = parsed.qrCheckinEnabled;
           }
         } catch {
           // Ignore
@@ -215,7 +278,7 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
     tables = loadStoredTables(cust);
   }
 
-  return { tables, guestMeta };
+  return { tables, guestMeta, qrCheckinEnabled };
 }
 
 /**
@@ -244,6 +307,7 @@ export async function saveSharedConfigToCloud(
     const payloadStr = JSON.stringify({
       tables,
       guestMeta: mergedGuestMeta,
+      qrCheckinEnabled: isQrCheckinEnabled(cust),
       updatedAt: new Date().toISOString(),
     });
 

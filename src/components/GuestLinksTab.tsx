@@ -16,6 +16,7 @@ import {
   loadStoredTables,
   loadSharedConfigFromCloud,
   saveSharedConfigToCloud,
+  isQrCheckinEnabled,
 } from '../lib/tableSync';
 import { EntrancePassModal } from './EntrancePassModal';
 import { normalizePhoneNumber, formatPhoneNumber } from '../lib/format';
@@ -62,6 +63,7 @@ interface GuestLinksTabProps {
   customer: Customer;
   userEmail?: string | null;
   userId?: string | null;
+  hasQrCheckin?: boolean;
 }
 
 const DEFAULT_WA_TEMPLATE = `Kepada Yth. {nama},
@@ -749,6 +751,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   customer,
   userEmail,
   userId,
+  hasQrCheckin = isQrCheckinEnabled(customer),
 }) => {
   const codesStorageKey = `guest_codes_${customer.id}`;
   const templateStorageKey = getWaTemplateStorageKey(customer);
@@ -1593,7 +1596,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
         {/* Quick inline add form */}
         <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1">
-          <div className="sm:col-span-3">
+          <div className={hasQrCheckin ? "sm:col-span-3" : "sm:col-span-5"}>
             <input
               type="text"
               placeholder="Ketik Nama Tamu (contoh: Budi & Keluarga)"
@@ -1616,18 +1619,20 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           </div>
 
-          <div className="sm:col-span-2">
-            <select
-              value={quickCategory}
-              onChange={(e) => setQuickCategory(e.target.value as GuestCategory)}
-              className="w-full px-2.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-              title="Kategori Tamu (Reguler / VIP / VVIP)"
-            >
-              <option value="Reguler">Reguler</option>
-              <option value="VIP">★ VIP</option>
-              <option value="VVIP">👑 VVIP</option>
-            </select>
-          </div>
+          {hasQrCheckin && (
+            <div className="sm:col-span-2">
+              <select
+                value={quickCategory}
+                onChange={(e) => setQuickCategory(e.target.value as GuestCategory)}
+                className="w-full px-2.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                title="Kategori Tamu (Reguler / VIP / VVIP)"
+              >
+                <option value="Reguler">Reguler</option>
+                <option value="VIP">★ VIP</option>
+                <option value="VVIP">👑 VVIP</option>
+              </select>
+            </div>
+          )}
 
           <div className="sm:col-span-2">
             <select
@@ -1792,16 +1797,18 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-[#52717b] font-medium hidden sm:inline">Filter:</span>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value as any)}
-              className="px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-medium focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-            >
-              <option value="all">Semua Kategori</option>
-              <option value="VVIP">👑 VVIP</option>
-              <option value="VIP">★ VIP</option>
-              <option value="Reguler">Reguler</option>
-            </select>
+            {hasQrCheckin && (
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value as any)}
+                className="px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-medium focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              >
+                <option value="all">Semua Kategori</option>
+                <option value="VVIP">👑 VVIP</option>
+                <option value="VIP">★ VIP</option>
+                <option value="Reguler">Reguler</option>
+              </select>
+            )}
 
             <select
               value={filterPhone}
@@ -1910,14 +1917,16 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {guest.name}
                       </span>
 
-                      {/* Kategori Badge */}
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${catBadgeClass}`}
-                        title="Kategori Tamu"
-                      >
-                        <Crown className="w-3 h-3" />
-                        <span>{guest.category || 'Reguler'}</span>
-                      </span>
+                      {/* Kategori Badge (khusus akun connect QR Check-in) */}
+                      {hasQrCheckin && (
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${catBadgeClass}`}
+                          title="Kategori Tamu"
+                        >
+                          <Crown className="w-3 h-3" />
+                          <span>{guest.category || 'Reguler'}</span>
+                        </span>
+                      )}
 
                       {guest.group_name && (
                         <span className="text-[10px] font-semibold text-[#52717b] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be]">
@@ -1930,23 +1939,25 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         <span>Jatah: {guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Tamu</span>
                       </span>
 
-                      {/* Quick Table Selector */}
-                      <div className="inline-flex items-center gap-1 bg-white/90 border border-[#d6cbb5] rounded-md px-2 py-0.5 text-[11px]">
-                        <Armchair className="w-3 h-3 text-[#0f3b47]" />
-                        <select
-                          value={guest.table_id || ''}
-                          onChange={(e) => handleQuickAssignTable(guest.id, e.target.value)}
-                          className="bg-transparent text-[#0e2c34] font-semibold focus:outline-none cursor-pointer text-[11px]"
-                          title="Pilih Meja untuk Tamu Ini"
-                        >
-                          <option value="">Belum Ada Meja</option>
-                          {tables.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              MEJA {t.code || t.name} ({t.capacity} Kursi)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {/* Quick Table Selector (khusus akun connect QR Check-in) */}
+                      {hasQrCheckin && (
+                        <div className="inline-flex items-center gap-1 bg-white/90 border border-[#d6cbb5] rounded-md px-2 py-0.5 text-[11px]">
+                          <Armchair className="w-3 h-3 text-[#0f3b47]" />
+                          <select
+                            value={guest.table_id || ''}
+                            onChange={(e) => handleQuickAssignTable(guest.id, e.target.value)}
+                            className="bg-transparent text-[#0e2c34] font-semibold focus:outline-none cursor-pointer text-[11px]"
+                            title="Pilih Meja untuk Tamu Ini"
+                          >
+                            <option value="">Belum Ada Meja</option>
+                            {tables.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                MEJA {t.code || t.name} ({t.capacity} Kursi)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                       {hasPhone ? (
                         <span className="inline-flex items-center gap-1 font-mono text-[11px] text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
@@ -2204,73 +2215,110 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                    Kategori Tamu
-                  </label>
-                  <select
-                    value={inputCategory}
-                    onChange={(e) => setInputCategory(e.target.value as GuestCategory)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                  >
-                    <option value="Reguler">Reguler</option>
-                    <option value="VIP">★ VIP</option>
-                    <option value="VVIP">👑 VVIP</option>
-                  </select>
-                </div>
+              {hasQrCheckin ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                        Kategori Tamu
+                      </label>
+                      <select
+                        value={inputCategory}
+                        onChange={(e) => setInputCategory(e.target.value as GuestCategory)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                      >
+                        <option value="Reguler">Reguler</option>
+                        <option value="VIP">★ VIP</option>
+                        <option value="VVIP">👑 VVIP</option>
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                    Jatah Tamu Maks.
-                  </label>
-                  <select
-                    value={inputMaxGuests}
-                    onChange={(e) => setInputMaxGuests(parseInt(e.target.value, 10) || 2)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                  >
-                    <option value={1}>1 Orang</option>
-                    <option value={2}>2 Orang (Default)</option>
-                    <option value={3}>3 Orang</option>
-                    <option value={4}>4 Orang</option>
-                    <option value={5}>5 Orang</option>
-                    <option value={6}>6 Orang</option>
-                  </select>
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                        Jatah Tamu Maks.
+                      </label>
+                      <select
+                        value={inputMaxGuests}
+                        onChange={(e) => setInputMaxGuests(parseInt(e.target.value, 10) || 2)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                      >
+                        <option value={1}>1 Orang</option>
+                        <option value={2}>2 Orang (Default)</option>
+                        <option value={3}>3 Orang</option>
+                        <option value={4}>4 Orang</option>
+                        <option value={5}>5 Orang</option>
+                        <option value={6}>6 Orang</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                    Grup / Keterangan
-                  </label>
-                  <input
-                    type="text"
-                    value={inputGroup}
-                    onChange={(e) => setInputGroup(e.target.value)}
-                    placeholder="Misal: Keluarga Bride"
-                    className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                        Grup / Keterangan
+                      </label>
+                      <input
+                        type="text"
+                        value={inputGroup}
+                        onChange={(e) => setInputGroup(e.target.value)}
+                        placeholder="Misal: Keluarga Bride"
+                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                    Penempatan Meja
-                  </label>
-                  <select
-                    value={inputTableId}
-                    onChange={(e) => setInputTableId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                  >
-                    <option value="">Belum Ditentukan</option>
-                    {tables.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        MEJA {t.code || t.name} ({t.capacity} Kursi)
-                      </option>
-                    ))}
-                  </select>
+                    <div>
+                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                        Penempatan Meja
+                      </label>
+                      <select
+                        value={inputTableId}
+                        onChange={(e) => setInputTableId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                      >
+                        <option value="">Belum Ditentukan</option>
+                        {tables.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            MEJA {t.code || t.name} ({t.capacity} Kursi)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                      Jatah Tamu Maks.
+                    </label>
+                    <select
+                      value={inputMaxGuests}
+                      onChange={(e) => setInputMaxGuests(parseInt(e.target.value, 10) || 2)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                    >
+                      <option value={1}>1 Orang</option>
+                      <option value={2}>2 Orang (Default)</option>
+                      <option value={3}>3 Orang</option>
+                      <option value={4}>4 Orang</option>
+                      <option value={5}>5 Orang</option>
+                      <option value={6}>6 Orang</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                      Grup / Keterangan
+                    </label>
+                    <input
+                      type="text"
+                      value={inputGroup}
+                      onChange={(e) => setInputGroup(e.target.value)}
+                      placeholder="Misal: Keluarga Bride"
+                      className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-[#0e2c34] mb-1">

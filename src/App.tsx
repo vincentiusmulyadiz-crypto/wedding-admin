@@ -18,6 +18,7 @@ import {
   generateGuestPassId,
 } from './lib/guestCode';
 import { DEMO_CUSTOMER } from './data/demoData';
+import { isQrCheckinEnabled } from './lib/tableSync';
 import {
   Loader2,
   Sparkles,
@@ -50,6 +51,18 @@ export function App() {
   const [configOpen, setConfigOpen] = useState<boolean>(false);
   const [copiedUid, setCopiedUid] = useState<boolean>(false);
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
+
+  // Check if active selected customer has QR Check-In service enabled
+  const hasQrCheckin = useMemo(
+    () => (selectedCustomer ? isQrCheckinEnabled(selectedCustomer) : false),
+    [selectedCustomer]
+  );
+
+  useEffect(() => {
+    if (selectedCustomer && !hasQrCheckin && activeTab === 'tables') {
+      setActiveTab('overview');
+    }
+  }, [selectedCustomer, hasQrCheckin, activeTab]);
 
   // Global Toast state
   const [toasts, setToasts] = useState<ActiveToast[]>([]);
@@ -316,6 +329,7 @@ export function App() {
         userEmail={session.user.email || null}
         onLogout={handleLogout}
         onOpenConfig={() => setConfigOpen(true)}
+        hasQrCheckin={hasQrCheckin}
       />
 
       {/* Main Content Area: pb-24 on mobile so bottom nav does not obstruct content */}
@@ -458,6 +472,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 customer={selectedCustomer}
                 userEmail={session.user.email}
                 userId={session.user.id}
+                hasQrCheckin={hasQrCheckin}
               />
             )}
 

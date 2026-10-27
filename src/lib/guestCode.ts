@@ -123,7 +123,7 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
 
 /**
  * Generates the deterministic Pass ID matching the invitation's AccessCard.tsx
- * (`VIP-2026-xxx`) so the QR code on the digital invitation matches the dashboard.
+ * (`JOY-2026-xxx`) so the QR code on the digital invitation matches the dashboard.
  */
 export function generateGuestPassId(guestName: string): string {
   const clean = (guestName || 'Guest').trim();
@@ -133,7 +133,7 @@ export function generateGuestPassId(guestName: string): string {
     hash |= 0;
   }
   const numeric = Math.abs(hash % 900) + 100;
-  return `VIP-2026-${numeric}`;
+  return `JOY-2026-${numeric}`;
 }
 
 /**
@@ -179,13 +179,13 @@ export function parseGuestPassUrl(url: string): {
   try {
     if (trimmed.includes('myqrcode/')) {
       // Modern Joyever format: myqrcode/[link undangan]/[numeric-code]
-      const modernMatch = trimmed.match(/myqrcode\/([^/?#]+)\/(?:(?:VIP-2026-)?(\d+)-)?([A-Za-z0-9_-]+)/i);
+      const modernMatch = trimmed.match(/myqrcode\/([^/?#]+)\/(?:(?:JOY-2026-|VIP-2026-)?(\d+)-)?([A-Za-z0-9_-]+)/i);
       if (modernMatch) {
         const domain = modernMatch[1];
         const numeric = modernMatch[2];
         const code = modernMatch[3];
         const cleanNumeric = numeric && numeric.startsWith('2026') && numeric.length > 4 ? numeric.slice(4) : numeric;
-        const passId = cleanNumeric ? `VIP-2026-${cleanNumeric}` : undefined;
+        const passId = cleanNumeric ? `JOY-2026-${cleanNumeric}` : undefined;
         const guestName = decodeGuestCode(code) || undefined;
         const slug = domain.split('.')[0];
         return { domain, slug, passId, code, guestName };
@@ -197,7 +197,7 @@ export function parseGuestPassUrl(url: string): {
         const slug = legacyMatch[1];
         const numeric = legacyMatch[2];
         const code = legacyMatch[3];
-        const passId = `VIP-2026-${numeric}`;
+        const passId = `JOY-2026-${numeric}`;
         const guestName = decodeGuestCode(code) || undefined;
         return { slug, passId, code, guestName };
       }

@@ -26,6 +26,7 @@ interface NavbarProps {
   userEmail: string | null;
   onLogout: () => void;
   onOpenConfig: () => void;
+  hasQrCheckin?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -38,6 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   userEmail,
   onLogout,
   onOpenConfig,
+  hasQrCheckin = true,
 }) => {
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
@@ -46,7 +48,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'guests', label: 'Daftar Tamu', icon: <Users className="w-4 h-4" /> },
     { id: 'links', label: 'Tautan Tamu', icon: <MessageCircle className="w-4 h-4 text-emerald-600" /> },
-    { id: 'tables', label: 'Manajemen Meja', icon: <Armchair className="w-4 h-4 text-amber-500" /> },
+    ...(hasQrCheckin
+      ? [
+          {
+            id: 'tables' as TabType,
+            label: 'Manajemen Meja',
+            icon: <Armchair className="w-4 h-4 text-amber-500" />,
+          },
+        ]
+      : []),
     { id: 'tutorial', label: 'Tutorial', icon: <BookOpen className="w-4 h-4 text-teal-700" /> },
     ...(isAdmin
       ? [

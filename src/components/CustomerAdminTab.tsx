@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Customer } from '../types/database';
 import { getSupabase } from '../lib/supabase';
 import { formatDateIndonesian } from '../lib/format';
+import { isQrCheckinEnabled, setCustomerQrCheckinEnabled } from '../lib/tableSync';
 import {
   Shield,
   Plus,
@@ -13,6 +14,7 @@ import {
   Globe,
   Loader2,
   AlertCircle,
+  QrCode,
 } from 'lucide-react';
 
 interface CustomerAdminTabProps {
@@ -27,6 +29,30 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
   currentUserId,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrStatusMap, setQrStatusMap] = useState<Record<string, boolean>>({});
+  const [togglingQr, setTogglingQr] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const initialMap: Record<string, boolean> = {};
+    customers.forEach((c) => {
+      initialMap[c.id] = isQrCheckinEnabled(c);
+    });
+    setQrStatusMap(initialMap);
+  }, [customers]);
+
+  const handleToggleQrCheckin = async (customer: Customer) => {
+    const current = qrStatusMap[customer.id] ?? isQrCheckinEnabled(customer);
+    const next = !current;
+    setTogglingQr((prev) => ({ ...prev, [customer.id]: true }));
+    try {
+      await setCustomerQrCheckinEnabled(customer, next);
+      setQrStatusMap((prev) => ({ ...prev, [customer.id]: next }));
+    } catch (err) {
+      console.error('Failed to update QR Check-In status:', err);
+    } finally {
+      setTogglingQr((prev) => ({ ...prev, [customer.id]: false }));
+    }
+  };
 
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newSlug, setNewSlug] = useState<string>('');
@@ -248,6 +274,52 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Status Paket & Toggle QR Check-In */}
+                {(() => {
+                  const hasQr = qrStatusMap[c.id] ?? isQrCheckinEnabled(c);
+                  const isBusy = togglingQr[c.id];
+                  return (
+                    <div className="pt-2 border-t border-[#ede5d4] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-[#5e7d87]">Layanan:</span>
+                        {hasQr ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-full">
+                            <QrCode className="w-3 h-3 text-emerald-700" />
+                            <span>RSVP + QR Check-In</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4c676f] bg-[#e8e1cf] border border-[#d6cbb5] px-2 py-0.5 rounded-full">
+                            <span>RSVP Saja</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => handleToggleQrCheckin(c)}
+                        className={`inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs ${
+                          hasQr
+                            ? 'bg-[#faebd7] hover:bg-[#f3dcbf] text-[#844c12] border border-[#e8c89b]'
+                            : 'bg-[#0f3b47] hover:bg-[#154e5e] text-white'
+                        } disabled:opacity-50`}
+                        title={
+                          hasQr
+                            ? 'Ubah ke paket RSVP Saja (Sembunyikan Kategori Tamu & Manajemen Meja)'
+                            : 'Aktifkan QR Check-In (Tampilkan Kategori Tamu & Manajemen Meja)'
+                        }
+                      >
+                        {isBusy ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <QrCode className="w-3 h-3" />
+                        )}
+                        <span>{hasQr ? 'Nonaktifkan QR' : 'Aktifkan QR'}</span>
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
