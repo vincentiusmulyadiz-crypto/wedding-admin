@@ -1559,11 +1559,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           )}
 
-          <div className={hasQrCheckin ? "sm:col-span-2" : "sm:col-span-2"}>
+          <div className={hasQrCheckin ? "sm:col-span-1" : "sm:col-span-2"}>
             <select
               value={quickMaxGuests}
               onChange={(e) => setQuickMaxGuests(parseInt(e.target.value, 10) || 2)}
-              className="w-full px-2.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+              className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
               title="Jatah Maksimal Tamu pada RSVP (default: 2)"
             >
               <option value={1}>1 Tamu</option>
@@ -1575,15 +1575,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </select>
           </div>
 
-          <div className={hasQrCheckin ? "sm:col-span-1" : "sm:col-span-2"}>
+          <div className="sm:col-span-2">
             <button
               type="submit"
               disabled={!quickName.trim()}
-              className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs"
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs whitespace-nowrap"
               title="Tambahkan tamu ini ke daftar"
             >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span className={hasQrCheckin ? "hidden xl:inline" : ""}>+ Tambah</span>
+              <UserPlus className="w-3.5 h-3.5 shrink-0" />
+              <span>Tambah Tamu</span>
             </button>
           </div>
         </form>
