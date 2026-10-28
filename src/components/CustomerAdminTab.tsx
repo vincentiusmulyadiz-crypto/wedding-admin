@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import type { Customer } from '../types/database';
 import { getSupabase } from '../lib/supabase';
 import { formatDateIndonesian } from '../lib/format';
-import { isQrCheckinEnabled, setCustomerQrCheckinEnabled } from '../lib/tableSync';
+import {
+  isQrCheckinEnabled,
+  isTableManagementEnabled,
+  isGuestCategoryEnabled,
+  setCustomerFeatureToggle,
+} from '../lib/tableSync';
 import {
   Shield,
   Plus,
@@ -15,6 +20,8 @@ import {
   Loader2,
   AlertCircle,
   QrCode,
+  Armchair,
+  Crown,
 } from 'lucide-react';
 
 interface CustomerAdminTabProps {
@@ -29,28 +36,62 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
   currentUserId,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [qrStatusMap, setQrStatusMap] = useState<Record<string, boolean>>({});
-  const [togglingQr, setTogglingQr] = useState<Record<string, boolean>>({});
+  const [featureMap, setFeatureMap] = useState<
+    Record<
+      string,
+      {
+        qrCheckin: boolean;
+        tableManagement: boolean;
+        guestCategory: boolean;
+      }
+    >
+  >({});
+  const [togglingMap, setTogglingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const initialMap: Record<string, boolean> = {};
+    const initialMap: Record<
+      string,
+      {
+        qrCheckin: boolean;
+        tableManagement: boolean;
+        guestCategory: boolean;
+      }
+    > = {};
     customers.forEach((c) => {
-      initialMap[c.id] = isQrCheckinEnabled(c);
+      initialMap[c.id] = {
+        qrCheckin: isQrCheckinEnabled(c),
+        tableManagement: isTableManagementEnabled(c),
+        guestCategory: isGuestCategoryEnabled(c),
+      };
     });
-    setQrStatusMap(initialMap);
+    setFeatureMap(initialMap);
   }, [customers]);
 
-  const handleToggleQrCheckin = async (customer: Customer) => {
-    const current = qrStatusMap[customer.id] ?? isQrCheckinEnabled(customer);
-    const next = !current;
-    setTogglingQr((prev) => ({ ...prev, [customer.id]: true }));
+  const handleToggleFeature = async (
+    customer: Customer,
+    feature: 'qrCheckin' | 'tableManagement' | 'guestCategory'
+  ) => {
+    const currentFlags = featureMap[customer.id] || {
+      qrCheckin: isQrCheckinEnabled(customer),
+      tableManagement: isTableManagementEnabled(customer),
+      guestCategory: isGuestCategoryEnabled(customer),
+    };
+    const nextVal = !currentFlags[feature];
+    const key = `${customer.id}_${feature}`;
+    setTogglingMap((prev) => ({ ...prev, [key]: true }));
     try {
-      await setCustomerQrCheckinEnabled(customer, next);
-      setQrStatusMap((prev) => ({ ...prev, [customer.id]: next }));
+      await setCustomerFeatureToggle(customer, feature, nextVal);
+      setFeatureMap((prev) => ({
+        ...prev,
+        [customer.id]: {
+          ...currentFlags,
+          [feature]: nextVal,
+        },
+      }));
     } catch (err) {
-      console.error('Failed to update QR Check-In status:', err);
+      console.error(`Failed to toggle ${feature}:`, err);
     } finally {
-      setTogglingQr((prev) => ({ ...prev, [customer.id]: false }));
+      setTogglingMap((prev) => ({ ...prev, [key]: false }));
     }
   };
 
@@ -275,48 +316,164 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                   </div>
                 </div>
 
-                {/* Status Paket & Toggle QR Check-In */}
+                {/* 3 Fitur Terhubung: QR Check-In, Management Table, Kategori Tamu */}
                 {(() => {
-                  const hasQr = qrStatusMap[c.id] ?? isQrCheckinEnabled(c);
-                  const isBusy = togglingQr[c.id];
+                  const flags = featureMap[c.id] || {
+                    qrCheckin: isQrCheckinEnabled(c),
+                    tableManagement: isTableManagementEnabled(c),
+                    guestCategory: isGuestCategoryEnabled(c),
+                  };
+                  const isBusyQr = togglingMap[`${c.id}_qrCheckin`];
+                  const isBusyTable = togglingMap[`${c.id}_tableManagement`];
+                  const isBusyCat = togglingMap[`${c.id}_guestCategory`];
+
                   return (
-                    <div className="pt-2 border-t border-[#ede5d4] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium text-[#5e7d87]">Layanan:</span>
-                        {hasQr ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-full">
-                            <QrCode className="w-3 h-3 text-emerald-700" />
-                            <span>RSVP + QR Check-In</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4c676f] bg-[#e8e1cf] border border-[#d6cbb5] px-2 py-0.5 rounded-full">
-                            <span>RSVP Saja</span>
-                          </span>
-                        )}
+                    <div className="pt-2.5 border-t border-[#ede5d4] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold text-[#0f3b47] uppercase tracking-wider">
+                          Fitur & Akses Terhubung:
+                        </span>
+                        <span className="text-[9px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Sinkron ke QR Check-In
+                        </span>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleToggleQrCheckin(c)}
-                        className={`inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs ${
-                          hasQr
-                            ? 'bg-[#faebd7] hover:bg-[#f3dcbf] text-[#844c12] border border-[#e8c89b]'
-                            : 'bg-[#0f3b47] hover:bg-[#154e5e] text-white'
-                        } disabled:opacity-50`}
-                        title={
-                          hasQr
-                            ? 'Ubah ke paket RSVP Saja (Sembunyikan Kategori Tamu & Manajemen Meja)'
-                            : 'Aktifkan QR Check-In (Tampilkan Kategori Tamu & Manajemen Meja)'
-                        }
-                      >
-                        {isBusy ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <QrCode className="w-3 h-3" />
-                        )}
-                        <span>{hasQr ? 'Nonaktifkan QR' : 'Aktifkan QR'}</span>
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {/* 1. Toggle QR Check-In */}
+                        <div
+                          className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
+                            flags.qrCheckin
+                              ? 'bg-[#fffdfa] border-emerald-300 shadow-2xs'
+                              : 'bg-[#f4efe3] border-[#ded4be] opacity-75'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <QrCode
+                              className={`w-3.5 h-3.5 ${
+                                flags.qrCheckin ? 'text-emerald-700' : 'text-[#6a8790]'
+                              }`}
+                            />
+                            <span className="font-bold text-[11px] text-[#0f3b47]">
+                              QR Check-In
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-[#ede5d4]">
+                            <span
+                              className={`text-[10px] font-extrabold ${
+                                flags.qrCheckin ? 'text-emerald-700' : 'text-[#6d8a93]'
+                              }`}
+                            >
+                              {flags.qrCheckin ? 'Aktif' : 'Off'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isBusyQr}
+                              onClick={() => handleToggleFeature(c, 'qrCheckin')}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out items-center px-0.5 ${
+                                flags.qrCheckin ? 'bg-emerald-600' : 'bg-[#c5b89e]'
+                              } disabled:opacity-50`}
+                              title="Aktifkan / Nonaktifkan Fitur QR Check-In"
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                                  flags.qrCheckin ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2. Toggle Management Table */}
+                        <div
+                          className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
+                            flags.tableManagement
+                              ? 'bg-[#fffdfa] border-amber-300 shadow-2xs'
+                              : 'bg-[#f4efe3] border-[#ded4be] opacity-75'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Armchair
+                              className={`w-3.5 h-3.5 ${
+                                flags.tableManagement ? 'text-amber-600' : 'text-[#6a8790]'
+                              }`}
+                            />
+                            <span className="font-bold text-[11px] text-[#0f3b47]">
+                              Table Mgmt
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-[#ede5d4]">
+                            <span
+                              className={`text-[10px] font-extrabold ${
+                                flags.tableManagement ? 'text-amber-700' : 'text-[#6d8a93]'
+                              }`}
+                            >
+                              {flags.tableManagement ? 'Aktif' : 'Off'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isBusyTable}
+                              onClick={() => handleToggleFeature(c, 'tableManagement')}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out items-center px-0.5 ${
+                                flags.tableManagement ? 'bg-amber-600' : 'bg-[#c5b89e]'
+                              } disabled:opacity-50`}
+                              title="Aktifkan / Nonaktifkan Management Table (Sistem Meja)"
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                                  flags.tableManagement ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 3. Toggle Kategori Tamu */}
+                        <div
+                          className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
+                            flags.guestCategory
+                              ? 'bg-[#fffdfa] border-indigo-300 shadow-2xs'
+                              : 'bg-[#f4efe3] border-[#ded4be] opacity-75'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Crown
+                              className={`w-3.5 h-3.5 ${
+                                flags.guestCategory ? 'text-indigo-600' : 'text-[#6a8790]'
+                              }`}
+                            />
+                            <span className="font-bold text-[11px] text-[#0f3b47]">
+                              Kategori
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-[#ede5d4]">
+                            <span
+                              className={`text-[10px] font-extrabold ${
+                                flags.guestCategory ? 'text-indigo-700' : 'text-[#6d8a93]'
+                              }`}
+                            >
+                              {flags.guestCategory ? 'Aktif' : 'Off'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isBusyCat}
+                              onClick={() => handleToggleFeature(c, 'guestCategory')}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out items-center px-0.5 ${
+                                flags.guestCategory ? 'bg-indigo-600' : 'bg-[#c5b89e]'
+                              } disabled:opacity-50`}
+                              title="Aktifkan / Nonaktifkan Kategori Tamu (VVIP, VIP, Reguler)"
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                                  flags.guestCategory ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}

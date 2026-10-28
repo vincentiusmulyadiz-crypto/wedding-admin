@@ -162,25 +162,81 @@ export function isQrCheckinEnabled(cust: Customer, cloudEnabled?: boolean | null
   } catch {}
 
   const lowerSlug = (cust.slug || '').toLowerCase();
-  // Hanya akun demo yang default aktif QR Check-in. Akun pasangan riil default RSVP Saja sampai diaktifkan admin.
   if (lowerSlug === 'romeo-juliet' || (cust.id && cust.id.includes('demo'))) {
     return true;
   }
   return false;
 }
 
-export async function setCustomerQrCheckinEnabled(
+export function isTableManagementEnabled(cust: Customer, cloudEnabled?: boolean | null): boolean {
+  if (typeof cloudEnabled === 'boolean') return cloudEnabled;
+  try {
+    if (cust.id) {
+      const stored = localStorage.getItem(`joyever_table_mgmt_enabled_${cust.id}`);
+      if (stored !== null) return stored === 'true';
+    }
+    if (cust.slug) {
+      const stored = localStorage.getItem(`joyever_table_mgmt_enabled_${cust.slug}`);
+      if (stored !== null) return stored === 'true';
+    }
+  } catch {}
+
+  const lowerSlug = (cust.slug || '').toLowerCase();
+  if (lowerSlug === 'romeo-juliet' || (cust.id && cust.id.includes('demo'))) {
+    return true;
+  }
+  // Default mengikuti QR Checkin jika belum diset terpisah
+  return isQrCheckinEnabled(cust);
+}
+
+export function isGuestCategoryEnabled(cust: Customer, cloudEnabled?: boolean | null): boolean {
+  if (typeof cloudEnabled === 'boolean') return cloudEnabled;
+  try {
+    if (cust.id) {
+      const stored = localStorage.getItem(`joyever_guest_cat_enabled_${cust.id}`);
+      if (stored !== null) return stored === 'true';
+    }
+    if (cust.slug) {
+      const stored = localStorage.getItem(`joyever_guest_cat_enabled_${cust.slug}`);
+      if (stored !== null) return stored === 'true';
+    }
+  } catch {}
+
+  const lowerSlug = (cust.slug || '').toLowerCase();
+  if (lowerSlug === 'romeo-juliet' || (cust.id && cust.id.includes('demo'))) {
+    return true;
+  }
+  // Default mengikuti QR Checkin jika belum diset terpisah
+  return isQrCheckinEnabled(cust);
+}
+
+export async function setCustomerFeatureToggle(
   cust: Customer,
+  feature: 'qrCheckin' | 'tableManagement' | 'guestCategory',
   enabled: boolean
 ): Promise<void> {
+  const keyMap = {
+    qrCheckin: 'joyever_qr_checkin_enabled',
+    tableManagement: 'joyever_table_mgmt_enabled',
+    guestCategory: 'joyever_guest_cat_enabled',
+  };
+  const prefix = keyMap[feature];
   try {
-    if (cust.id) localStorage.setItem(`joyever_qr_checkin_enabled_${cust.id}`, String(enabled));
-    if (cust.slug) localStorage.setItem(`joyever_qr_checkin_enabled_${cust.slug}`, String(enabled));
+    if (cust.id) localStorage.setItem(`${prefix}_${cust.id}`, String(enabled));
+    if (cust.slug) localStorage.setItem(`${prefix}_${cust.slug}`, String(enabled));
     window.dispatchEvent(
-      new CustomEvent('joyever:qr-checkin-toggled', {
-        detail: { customerId: cust.id, slug: cust.slug, enabled },
+      new CustomEvent('joyever:feature-toggled', {
+        detail: { customerId: cust.id, slug: cust.slug, feature, enabled },
       })
     );
+    // Backward compatibility event
+    if (feature === 'qrCheckin') {
+      window.dispatchEvent(
+        new CustomEvent('joyever:qr-checkin-toggled', {
+          detail: { customerId: cust.id, slug: cust.slug, enabled },
+        })
+      );
+    }
   } catch {}
 
   if (!cust.id || cust.id.includes('demo')) return;
@@ -188,10 +244,17 @@ export async function setCustomerQrCheckinEnabled(
   try {
     const supabase = getSupabase();
     const existing = await loadSharedConfigFromCloud(cust);
+
+    const currentQr = feature === 'qrCheckin' ? enabled : existing.qrCheckinEnabled;
+    const currentTable = feature === 'tableManagement' ? enabled : existing.tableManagementEnabled;
+    const currentCategory = feature === 'guestCategory' ? enabled : existing.guestCategoryEnabled;
+
     const payloadStr = JSON.stringify({
       tables: existing.tables || [],
       guestMeta: existing.guestMeta || {},
-      qrCheckinEnabled: enabled,
+      qrCheckinEnabled: currentQr,
+      tableManagementEnabled: currentTable,
+      guestCategoryEnabled: currentCategory,
       updatedAt: new Date().toISOString(),
     });
 
@@ -206,23 +269,46 @@ export async function setCustomerQrCheckinEnabled(
       code: RESERVED_CONFIG_CODE,
       phone: payloadStr,
     });
+
+    // Broadcast across devices / QR Checkin tabs
+    try {
+      const channel = supabase.channel(`joyever_checkin_sync_${cust.id}`);
+      await channel.send({
+        type: 'broadcast',
+        event: 'checkin_updated',
+        payload: { updatedAt: new Date().toISOString() },
+      });
+    } catch {
+      // Ignore broadcast error
+    }
   } catch (e) {
-    console.warn('Could not save qr checkin flag to cloud:', e);
+    console.warn(`Could not save feature toggle [${feature}] to cloud:`, e);
   }
 }
 
+export async function setCustomerQrCheckinEnabled(
+  cust: Customer,
+  enabled: boolean
+): Promise<void> {
+  return setCustomerFeatureToggle(cust, 'qrCheckin', enabled);
+}
+
 /**
- * Loads shared config (tables + guest extended metadata + qrCheckinEnabled) from public.guests reserved row
+ * Loads shared config (tables + guest extended metadata + feature toggles) from public.guests reserved row
  * or user_metadata so both the couple and Joyever Ushers see the exact same tables & categories.
  */
 export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
   tables: WeddingTable[] | null;
   guestMeta: Record<string, GuestExtendedMeta>;
   qrCheckinEnabled: boolean;
+  tableManagementEnabled: boolean;
+  guestCategoryEnabled: boolean;
 }> {
   let tables: WeddingTable[] | null = null;
   let guestMeta: Record<string, GuestExtendedMeta> = {};
   let qrCheckinEnabled = isQrCheckinEnabled(cust);
+  let tableManagementEnabled = isTableManagementEnabled(cust);
+  let guestCategoryEnabled = isGuestCategoryEnabled(cust);
 
   try {
     const supabase = getSupabase();
@@ -248,6 +334,12 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
           }
           if (parsed && typeof parsed.qrCheckinEnabled === 'boolean') {
             qrCheckinEnabled = parsed.qrCheckinEnabled;
+          }
+          if (parsed && typeof parsed.tableManagementEnabled === 'boolean') {
+            tableManagementEnabled = parsed.tableManagementEnabled;
+          }
+          if (parsed && typeof parsed.guestCategoryEnabled === 'boolean') {
+            guestCategoryEnabled = parsed.guestCategoryEnabled;
           }
         } catch {
           // Ignore
@@ -283,7 +375,7 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
     tables = loadStoredTables(cust);
   }
 
-  return { tables, guestMeta, qrCheckinEnabled };
+  return { tables, guestMeta, qrCheckinEnabled, tableManagementEnabled, guestCategoryEnabled };
 }
 
 /**
@@ -313,6 +405,8 @@ export async function saveSharedConfigToCloud(
       tables,
       guestMeta: mergedGuestMeta,
       qrCheckinEnabled: isQrCheckinEnabled(cust),
+      tableManagementEnabled: isTableManagementEnabled(cust),
+      guestCategoryEnabled: isGuestCategoryEnabled(cust),
       updatedAt: new Date().toISOString(),
     });
 

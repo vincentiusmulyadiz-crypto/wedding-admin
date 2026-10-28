@@ -17,6 +17,8 @@ import {
   loadSharedConfigFromCloud,
   saveSharedConfigToCloud,
   isQrCheckinEnabled,
+  isTableManagementEnabled,
+  isGuestCategoryEnabled,
 } from '../lib/tableSync';
 import { EntrancePassModal } from './EntrancePassModal';
 import { normalizePhoneNumber, formatPhoneNumber } from '../lib/format';
@@ -63,6 +65,8 @@ interface GuestLinksTabProps {
   userEmail?: string | null;
   userId?: string | null;
   hasQrCheckin?: boolean;
+  hasTableManagement?: boolean;
+  hasGuestCategory?: boolean;
 }
 
 const DEFAULT_WA_TEMPLATE = `Kepada Yth. {nama},
@@ -751,6 +755,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   userEmail,
   userId,
   hasQrCheckin = isQrCheckinEnabled(customer),
+  hasTableManagement = isTableManagementEnabled(customer),
+  hasGuestCategory = isGuestCategoryEnabled(customer),
 }) => {
   const codesStorageKey = `guest_codes_${customer.id}`;
   const templateStorageKey = getWaTemplateStorageKey(customer);
@@ -1522,7 +1528,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           </div>
 
-          {hasQrCheckin && (
+          {(hasGuestCategory || hasQrCheckin) && (
             <div className="sm:col-span-2">
               <input
                 type="text"
@@ -1530,12 +1536,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 value={quickGroup}
                 onChange={(e) => setQuickGroup(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                title="Grup / Keterangan Tamu (Khusus Akun QR Check-In)"
+                title="Grup / Keterangan Tamu"
               />
             </div>
           )}
 
-          {hasQrCheckin && (
+          {hasGuestCategory && (
             <div className="sm:col-span-2">
               <select
                 value={quickCategory}
@@ -1550,7 +1556,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           )}
 
-          <div className={hasQrCheckin ? "sm:col-span-1" : "sm:col-span-2"}>
+          <div className={hasGuestCategory || hasQrCheckin ? "sm:col-span-1" : "sm:col-span-2"}>
             <select
               value={quickMaxGuests}
               onChange={(e) => setQuickMaxGuests(parseInt(e.target.value, 10) || 2)}
@@ -1718,7 +1724,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-[#52717b] font-medium hidden sm:inline">Filter:</span>
-            {hasQrCheckin && (
+            {hasGuestCategory && (
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value as any)}
@@ -1782,8 +1788,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {guest.name}
                       </span>
 
-                      {/* Kategori Badge (khusus akun connect QR Check-in) */}
-                      {hasQrCheckin && (
+                      {/* Kategori Badge */}
+                      {hasGuestCategory && (
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${catBadgeClass}`}
                           title="Kategori Tamu"
@@ -1793,7 +1799,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         </span>
                       )}
 
-                      {hasQrCheckin && guest.group_name && (
+                      {(hasGuestCategory || hasQrCheckin) && guest.group_name && (
                         <span className="text-[10px] font-semibold text-[#52717b] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be]">
                           {guest.group_name}
                         </span>
@@ -1804,8 +1810,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         <span>Jatah: {guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Tamu</span>
                       </span>
 
-                      {/* Quick Table Selector (khusus akun connect QR Check-in) */}
-                      {hasQrCheckin && (
+                      {/* Quick Table Selector */}
+                      {hasTableManagement && (
                         <div className="inline-flex items-center gap-1 bg-white/90 border border-[#d6cbb5] rounded-md px-2 py-0.5 text-[11px]">
                           <Armchair className="w-3 h-3 text-[#0f3b47]" />
                           <select

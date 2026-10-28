@@ -18,7 +18,11 @@ import {
   generateGuestPassId,
 } from './lib/guestCode';
 import { DEMO_CUSTOMER } from './data/demoData';
-import { isQrCheckinEnabled } from './lib/tableSync';
+import {
+  isQrCheckinEnabled,
+  isTableManagementEnabled,
+  isGuestCategoryEnabled,
+} from './lib/tableSync';
 import {
   Loader2,
   Sparkles,
@@ -52,25 +56,39 @@ export function App() {
   const [copiedUid, setCopiedUid] = useState<boolean>(false);
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
 
-  // Check if active selected customer has QR Check-In service enabled
-  const [qrToggledTick, setQrToggledTick] = useState(0);
+  // Check if active selected customer has features enabled
+  const [featureToggledTick, setFeatureToggledTick] = useState(0);
 
   useEffect(() => {
-    const handleToggled = () => setQrToggledTick((t) => t + 1);
+    const handleToggled = () => setFeatureToggledTick((t) => t + 1);
+    window.addEventListener('joyever:feature-toggled', handleToggled);
     window.addEventListener('joyever:qr-checkin-toggled', handleToggled);
-    return () => window.removeEventListener('joyever:qr-checkin-toggled', handleToggled);
+    return () => {
+      window.removeEventListener('joyever:feature-toggled', handleToggled);
+      window.removeEventListener('joyever:qr-checkin-toggled', handleToggled);
+    };
   }, []);
 
   const hasQrCheckin = useMemo(
     () => (selectedCustomer ? isQrCheckinEnabled(selectedCustomer) : false),
-    [selectedCustomer, qrToggledTick]
+    [selectedCustomer, featureToggledTick]
+  );
+
+  const hasTableManagement = useMemo(
+    () => (selectedCustomer ? isTableManagementEnabled(selectedCustomer) : false),
+    [selectedCustomer, featureToggledTick]
+  );
+
+  const hasGuestCategory = useMemo(
+    () => (selectedCustomer ? isGuestCategoryEnabled(selectedCustomer) : false),
+    [selectedCustomer, featureToggledTick]
   );
 
   useEffect(() => {
-    if (selectedCustomer && !hasQrCheckin && activeTab === 'tables') {
+    if (selectedCustomer && !hasTableManagement && activeTab === 'tables') {
       setActiveTab('overview');
     }
-  }, [selectedCustomer, hasQrCheckin, activeTab]);
+  }, [selectedCustomer, hasTableManagement, activeTab]);
 
   // Global Toast state
   const [toasts, setToasts] = useState<ActiveToast[]>([]);
@@ -338,6 +356,7 @@ export function App() {
         onLogout={handleLogout}
         onOpenConfig={() => setConfigOpen(true)}
         hasQrCheckin={hasQrCheckin}
+        hasTableManagement={hasTableManagement}
       />
 
       {/* Main Content Area: pb-24 on mobile so bottom nav does not obstruct content */}
@@ -481,6 +500,8 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 userEmail={session.user.email}
                 userId={session.user.id}
                 hasQrCheckin={hasQrCheckin}
+                hasTableManagement={hasTableManagement}
+                hasGuestCategory={hasGuestCategory}
               />
             )}
 

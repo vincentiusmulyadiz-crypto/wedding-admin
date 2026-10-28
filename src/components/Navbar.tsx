@@ -27,6 +27,7 @@ interface NavbarProps {
   onLogout: () => void;
   onOpenConfig: () => void;
   hasQrCheckin?: boolean;
+  hasTableManagement?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -40,15 +41,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenConfig,
   hasQrCheckin = true,
+  hasTableManagement,
 }) => {
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   // Tab definitions dengan istilah bahasa awam
+  const showTablesTab = hasTableManagement !== undefined ? hasTableManagement : hasQrCheckin;
+
   const tabs: { id: TabType; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
     { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'guests', label: 'Daftar Tamu', icon: <Users className="w-4 h-4" /> },
     { id: 'links', label: 'Tautan Tamu', icon: <MessageCircle className="w-4 h-4 text-emerald-600" /> },
-    ...(hasQrCheckin
+    ...(showTablesTab
       ? [
           {
             id: 'tables' as TabType,
