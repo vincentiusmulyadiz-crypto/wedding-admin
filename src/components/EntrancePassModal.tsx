@@ -36,7 +36,7 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
 
   const cleanName = guest.name || 'Tamu Undangan';
-  const passId = guest.passId || generateGuestPassId(cleanName);
+  const passId = guest.passId || generateGuestPassId(cleanName, customer.slug || customer.couple_names);
   const guestCode = guest.code || encodeGuestCode(cleanName, guest.max_guests || 2);
   const cleanCat = (guest.category || '').toUpperCase();
   const isVipOrVvip = cleanCat === 'VIP' || cleanCat === 'VVIP';

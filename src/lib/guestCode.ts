@@ -122,10 +122,30 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
 }
 
 /**
- * Generates the deterministic Pass ID matching the invitation's AccessCard.tsx
- * (`JOY-2026-xxx`) so the QR code on the digital invitation matches the dashboard.
+ * Formats couple slug or names into clean uppercase code, e.g.:
+ * "Indah & Ricky" -> "INDAH-RICKY"
+ * "indah-ricky" -> "INDAH-RICKY"
+ * "Rima & Noval" -> "RIMA-NOVAL"
+ * "Romeo & Juliet" -> "ROMEO-JULIET"
  */
-export function generateGuestPassId(guestName: string): string {
+export function formatCoupleCode(coupleIdentifier?: string): string {
+  if (!coupleIdentifier) return 'WEDDING';
+  let clean = coupleIdentifier.replace(/\.joyever\.id$/i, '').trim();
+  clean = clean
+    .replace(/&/g, '-')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .toUpperCase();
+  return clean || 'WEDDING';
+}
+
+/**
+ * Generates the deterministic Pass ID in canonical format:
+ * `JOY-[NAMA PENGANTIN]-XXX` (e.g. `JOY-INDAH-RICKY-101`, `JOY-RIMA-NOVAL-101`)
+ */
+export function generateGuestPassId(guestName: string, coupleIdentifier?: string): string {
   const clean = (guestName || 'Guest').trim();
   let hash = 0;
   for (let i = 0; i < clean.length; i++) {
@@ -133,7 +153,8 @@ export function generateGuestPassId(guestName: string): string {
     hash |= 0;
   }
   const numeric = Math.abs(hash % 900) + 100;
-  return `JOY-2026-${numeric}`;
+  const prefix = formatCoupleCode(coupleIdentifier);
+  return `JOY-${prefix}-${numeric}`;
 }
 
 /**
@@ -143,6 +164,7 @@ export function generateGuestPassId(guestName: string): string {
  */
 export function buildGuestPassUrl(params: {
   slug?: string;
+  coupleNames?: string;
   guestName: string;
   code?: string;
   passId?: string;
@@ -160,7 +182,7 @@ export function buildGuestPassUrl(params: {
   }
 
   const rawCode = params.code || encodeGuestCode(params.guestName);
-  const passId = params.passId || generateGuestPassId(params.guestName);
+  const passId = params.passId || generateGuestPassId(params.guestName, params.slug || params.coupleNames);
   const numId = passId.replace(/\D/g, '') || '380';
 
   return `https://joyever.id/myqrcode/${coupleLink}/${numId}-${rawCode}`;
@@ -179,15 +201,19 @@ export function parseGuestPassUrl(url: string): {
   try {
     if (trimmed.includes('myqrcode/')) {
       // Modern Joyever format: myqrcode/[link undangan]/[numeric-code]
-      const modernMatch = trimmed.match(/myqrcode\/([^/?#]+)\/(?:(?:JOY-2026-|VIP-2026-)?(\d+)-)?([A-Za-z0-9_-]+)/i);
+      // Matches both new JOY-[NAMA]-XXX and legacy numeric passes
+      const modernMatch = trimmed.match(
+        /myqrcode\/([^/?#]+)\/(?:(?:JOY-(?:[A-Za-z0-9]+-)+|VIP-2026-)?(\d+)-)?([A-Za-z0-9_-]+)/i
+      );
       if (modernMatch) {
         const domain = modernMatch[1];
         const numeric = modernMatch[2];
         const code = modernMatch[3];
-        const cleanNumeric = numeric && numeric.startsWith('2026') && numeric.length > 4 ? numeric.slice(4) : numeric;
-        const passId = cleanNumeric ? `JOY-2026-${cleanNumeric}` : undefined;
-        const guestName = decodeGuestCode(code) || undefined;
         const slug = domain.split('.')[0];
+        const cleanNumeric = numeric && numeric.startsWith('2026') && numeric.length > 4 ? numeric.slice(4) : numeric;
+        const prefix = formatCoupleCode(slug);
+        const passId = cleanNumeric ? `JOY-${prefix}-${cleanNumeric}` : undefined;
+        const guestName = decodeGuestCode(code) || undefined;
         return { domain, slug, passId, code, guestName };
       }
 
@@ -197,7 +223,8 @@ export function parseGuestPassUrl(url: string): {
         const slug = legacyMatch[1];
         const numeric = legacyMatch[2];
         const code = legacyMatch[3];
-        const passId = `JOY-2026-${numeric}`;
+        const prefix = formatCoupleCode(slug);
+        const passId = `JOY-${prefix}-${numeric}`;
         const guestName = decodeGuestCode(code) || undefined;
         return { slug, passId, code, guestName };
       }
@@ -235,7 +262,7 @@ export function buildGuestQrPayload(params: {
   domain?: string;
   invitationLink?: string;
 }): string {
-  const passId = params.passId || generateGuestPassId(params.guestName);
+  const passId = params.passId || generateGuestPassId(params.guestName, params.slug || params.coupleNames);
   const coupleLink =
     params.invitationLink ||
     params.domain ||
@@ -244,6 +271,7 @@ export function buildGuestQrPayload(params: {
   return buildGuestPassUrl({
     invitationLink: coupleLink,
     slug: params.slug,
+    coupleNames: params.coupleNames,
     guestName: params.guestName,
     code: params.code,
     passId,

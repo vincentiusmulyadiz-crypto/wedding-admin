@@ -1156,7 +1156,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       const status: 'rsvped' | 'opened' | 'unopened' = isRsvped ? 'rsvped' : isOpened ? 'opened' : 'unopened';
       const category: GuestCategory = guest.category || 'Reguler';
       const assignedTable = guest.table_id ? tableMap.get(guest.table_id) || null : null;
-      const passId = generateGuestPassId(cleanName);
+      const passId = generateGuestPassId(cleanName, customer.slug || customer.couple_names);
 
       return {
         ...guest,

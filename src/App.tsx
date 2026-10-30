@@ -108,7 +108,7 @@ export function App() {
       const guestName =
         toQuery || parsed?.guestName || (code ? decodeGuestCode(code) : null) || 'Tamu Undangan';
       const quota = code ? decodeGuestQuota(code) : 2;
-      const passId = passQuery || parsed?.passId || generateGuestPassId(guestName);
+      const passId = passQuery || parsed?.passId || generateGuestPassId(guestName, parsed?.slug);
 
       return {
         name: guestName,
