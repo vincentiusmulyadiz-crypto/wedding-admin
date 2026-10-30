@@ -327,9 +327,19 @@ export function App() {
   // 1. Initial loading screen
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#f9f6ee] flex flex-col items-center justify-center p-4 text-[#5e7d87] space-y-3">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0f3b47]" />
-        <p className="text-xs font-bold text-[#0f3b47]">Memuat sesi panel joyever...</p>
+      <div className="min-h-screen bg-[#0E435A] flex flex-col items-center justify-center p-4 text-[#FAF6EC] space-y-4">
+        <img
+          src="/logo-joyever-clean.png"
+          alt="Joyever"
+          className="h-11 sm:h-13 w-auto object-contain animate-pulse"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = '/logo.png';
+          }}
+        />
+        <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-[#092f40] border border-[#144d66] shadow-xs text-xs font-semibold text-[#DFD0B8]">
+          <Loader2 className="w-4 h-4 animate-spin text-[#DFD0B8]" />
+          <span>Memuat sesi panel Joyever...</span>
+        </div>
       </div>
     );
   }
