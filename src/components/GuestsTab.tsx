@@ -659,18 +659,20 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               : 'Belum ada tamu yang mengisi konfirmasi kehadiran.'}
           </p>
           {(searchQuery || primaryStatusFilter !== 'all' || eventFilter !== 'all') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setPrimaryStatusFilter('all');
-                setEventFilter('all');
-                setPage(1);
-              }}
-              className="text-xs text-[#0f3b47] hover:underline font-bold pt-2 inline-block"
-            >
-              Reset Semua Filter
-            </button>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setPrimaryStatusFilter('all');
+                  setEventFilter('all');
+                  setPage(1);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#0E435A] hover:bg-[#154e66] text-[#FAF6EC] font-bold text-xs shadow-xs active:scale-[0.98] transition cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <span>Reset Semua Filter</span>
+              </button>
+            </div>
           )}
         </div>
       ) : (

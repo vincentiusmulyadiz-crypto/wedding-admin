@@ -17,10 +17,7 @@ import {
   RotateCw,
   Calendar,
   MessageSquare,
-  Sparkles,
   Wifi,
-  Radio,
-  ArrowRight,
 } from 'lucide-react';
 import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
 
@@ -218,15 +215,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
 
           {/* Refresh button & live sync status */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs text-[#52717b]">
+            <div className="flex items-center gap-2 text-xs text-[#456470]">
               {realtimeActive ? (
                 <span className="inline-flex items-center gap-1.5 text-teal-800 font-semibold bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
-                  <Radio className="w-3 h-3 text-teal-600 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-teal-500" />
                   <span>Realtime aktif</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 text-[#5e7d87] bg-[#f0ebd9] px-2.5 py-1 rounded-full border border-[#ded4be]">
-                  <Wifi className="w-3 h-3 text-[#7a9aa5]" />
+                <span className="inline-flex items-center gap-1.5 text-[#456470] bg-[#f0ebd9] px-2.5 py-1 rounded-full border border-[#ded4be]">
+                  <Wifi className="w-3 h-3 text-[#456470]" />
                   <span>Update otomatis (60d)</span>
                 </span>
               )}
@@ -236,7 +233,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
               type="button"
               onClick={() => fetchOverviewData()}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0f3b47] hover:bg-[#154e5e] text-[#fffdf8] text-xs font-bold transition shadow-xs disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0E435A] hover:bg-[#154e66] active:scale-[0.98] text-[#FAF6EC] text-xs font-bold transition shadow-xs disabled:opacity-50 cursor-pointer"
             >
               <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span>Segarkan</span>
@@ -245,9 +242,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
         </div>
 
         {hasNewInsert && (
-          <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl flex items-center gap-2 text-teal-900 text-xs font-semibold animate-bounce">
-            <Sparkles className="w-4 h-4 text-teal-600" />
-            <span>Ada konfirmasi kehadiran baru yang baru saja masuk!</span>
+          <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl flex items-center justify-between text-teal-900 text-xs font-semibold animate-in fade-in duration-300">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-teal-600" />
+              <span>Ada konfirmasi kehadiran baru yang baru saja masuk!</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHasNewInsert(false)}
+              className="text-teal-700 hover:text-teal-900 text-xs font-bold p-1"
+            >
+              Tutup
+            </button>
           </div>
         )}
       </div>
@@ -258,13 +264,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
       ) : (
         <div className="space-y-4">
           {/* Satu Angka Besar Sebagai Fokus: "X tamu akan hadir" */}
-          <div className="bg-gradient-to-br from-[#0f3b47] via-[#144d5c] to-[#0e2c34] text-white rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
+          <div className="bg-gradient-to-br from-[#0E435A] via-[#124e68] to-[#0A3345] text-white rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
             <div className="relative z-10 space-y-2">
               <span className="text-xs uppercase tracking-wider font-bold text-[#b5e0eb] block">
                 Total Perkiraan Kehadiran Fisik
               </span>
               <div className="flex flex-wrap items-baseline gap-3 pt-1">
-                <span className="text-5xl sm:text-7xl font-extrabold tracking-tight text-white">
+                <span className="text-5xl sm:text-7xl font-extrabold tracking-tight text-white font-['Lora',serif]">
                   {stats.totalGuestsAttending}
                 </span>
                 <span className="text-2xl sm:text-3xl font-bold text-[#d2eff5]">
@@ -275,8 +281,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
                 Dihitung dari <strong className="text-white font-bold">{stats.hadirCount}</strong> konfirmasi kehadiran yang menyatakan hadir (termasuk pasangan / keluarga yang dibawa).
               </p>
             </div>
-            {/* Subtle decorative background icon */}
-            <Users className="w-48 h-48 text-white/5 absolute -right-6 -bottom-10 pointer-events-none" />
           </div>
 
           {/* Hanya 3 Kartu Pendukung: Akan Hadir, Tidak Hadir, Belum Balas */}
@@ -362,10 +366,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
           <button
             type="button"
             onClick={() => onSelectTab?.('guests')}
-            className="inline-flex items-center gap-1 text-xs font-bold text-[#0f3b47] hover:text-[#154e5e] hover:underline"
+            className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[#0E435A]/10 hover:bg-[#0E435A]/15 text-xs font-bold text-[#0E435A] transition active:scale-[0.98] cursor-pointer"
           >
-            <span>Lihat semua</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <span>Buka Semua Ucapan</span>
           </button>
         </div>
 
@@ -424,11 +427,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
           <button
             type="button"
             onClick={() => onSelectTab?.('guests')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded3bd] text-xs font-bold text-[#0f3b47] transition shadow-xs"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#0E435A]/10 hover:bg-[#0E435A]/15 border border-[#0E435A]/20 text-xs font-bold text-[#0E435A] active:scale-[0.98] transition shadow-xs cursor-pointer"
           >
-            <Users className="w-4 h-4 text-[#0f3b47]" />
+            <Users className="w-4 h-4 text-[#0E435A]" />
             <span>Buka Seluruh Daftar Tamu & Ucapan</span>
-            <ArrowRight className="w-3.5 h-3.5 text-[#0f3b47]" />
           </button>
         </div>
       </div>

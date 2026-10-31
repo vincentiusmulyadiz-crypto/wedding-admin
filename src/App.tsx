@@ -25,7 +25,7 @@ import {
 } from './lib/tableSync';
 import {
   Loader2,
-  Sparkles,
+  Shield,
   FolderX,
   Copy,
   Check,
@@ -262,25 +262,6 @@ export function App() {
     }
   }, [currentUserId, isDemoMode, checkAdminStatus, fetchCustomers]);
 
-  const handleDemoLogin = () => {
-    import('./data/demoData').then(({ DEMO_CUSTOMER }) => {
-      setIsDemoMode(true);
-      setSession({
-        user: {
-          id: DEMO_CUSTOMER.owner_id || 'demo-user-romeo-juliet',
-          email: 'demo@joyever.id',
-          app_metadata: {},
-          user_metadata: {},
-          aud: 'authenticated',
-          created_at: new Date().toISOString(),
-        },
-      } as unknown as Session);
-      setIsAdmin(false);
-      setCustomers([DEMO_CUSTOMER]);
-      setSelectedCustomer(DEMO_CUSTOMER);
-    });
-  };
-
   const handleLogout = async () => {
     if (isDemoMode) {
       setIsDemoMode(false);
@@ -346,7 +327,7 @@ export function App() {
 
   // 2. Unauthenticated: Login screen
   if (!session) {
-    return <Login onSuccess={checkSession} onDemoLogin={handleDemoLogin} />;
+    return <Login onSuccess={checkSession} />;
   }
 
   return (
@@ -473,9 +454,9 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 <button
                   type="button"
                   onClick={() => setActiveTab('customers')}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 shadow-xs transition"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 shadow-xs active:scale-[0.98] transition cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <Shield className="w-3.5 h-3.5 text-amber-700" />
                   <span>Buka Tab Kelola Undangan (Admin)</span>
                 </button>
               )}
@@ -486,8 +467,8 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
             Silakan pilih undangan melalui menu atas.
           </div>
         ) : (
-          /* Render Active Tab */
-          <div>
+          /* Render Active Tab with Smooth Fade-in Transition */
+          <div key={`${activeTab}-${selectedCustomer.id}`} className="animate-in fade-in duration-200">
             {activeTab === 'overview' && (
               <OverviewTab
                 key={selectedCustomer.id || selectedCustomer.slug}

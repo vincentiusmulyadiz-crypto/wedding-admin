@@ -3,7 +3,7 @@ import {
   Users,
   LayoutDashboard,
   CheckCircle2,
-  Sparkles,
+  Lightbulb,
   HelpCircle,
   Download,
   Search,
@@ -162,7 +162,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
 
           <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] space-y-1.5 sm:col-span-2 lg:col-span-1 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-[#cdbe9f]">
             <div className="flex items-center gap-2 text-[#0e2c34] font-bold text-xs">
-              <Sparkles className="w-4 h-4 text-amber-600" />
+              <Lightbulb className="w-4 h-4 text-amber-600" />
               <span>Ucapan Terbaru</span>
             </div>
             <p className="text-xs text-[#52717b] leading-relaxed">
