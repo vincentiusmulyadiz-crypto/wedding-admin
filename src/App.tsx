@@ -158,7 +158,12 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    checkSession();
+    // Safety release: ensure authLoading never blocks mobile screen indefinitely
+    const safetyTimer = setTimeout(() => {
+      setAuthLoading(false);
+    }, 3500);
+
+    checkSession().finally(() => clearTimeout(safetyTimer));
 
     const supabase = getSupabase();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
@@ -171,6 +176,7 @@ export function App() {
     });
 
     return () => {
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, [checkSession]);
