@@ -391,21 +391,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
                         {item.name}
                       </span>
                       {item.guests > 1 && (
-                        <span className="text-[10px] text-[#0f3b47] bg-[#f0ebd9] px-2 py-0.5 rounded-full border border-[#ded4be] font-semibold shrink-0">
-                          {item.guests} tamu
+                        <span className="text-[10px] text-[#0f3b47] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be] font-semibold shrink-0 whitespace-nowrap">
+                          {item.guests} Tamu
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
                       <span
-                        className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${badge.colorClass}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap border ${badge.colorClass}`}
                       >
-                        {badge.group === 'hadir' && <CheckCircle2 className="w-3 h-3 text-teal-600" />}
-                        {badge.group === 'tidak_hadir' && <XCircle className="w-3 h-3 text-rose-600" />}
-                        {badge.group === 'belum_pasti' && <HelpCircle className="w-3 h-3 text-amber-600" />}
+                        {badge.group === 'hadir' && <CheckCircle2 className="w-3 h-3 text-[#34D399]" />}
+                        {badge.group === 'tidak_hadir' && <XCircle className="w-3 h-3 text-[#FDA4AF]" />}
+                        {badge.group === 'belum_pasti' && <HelpCircle className="w-3 h-3 text-[#FBBF24]" />}
                         <span>{badge.label}</span>
-                        {eventDetail && <span className="opacity-75 font-normal">({eventDetail})</span>}
+                        {eventDetail && <span className="opacity-80 font-normal">({eventDetail})</span>}
                       </span>
                       <span className="text-[10px] text-[#698892] hidden sm:inline">
                         {formatDateTimeIndonesian(item.created_at)}

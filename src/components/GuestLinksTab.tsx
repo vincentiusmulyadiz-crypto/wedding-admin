@@ -1847,27 +1847,27 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
                       {guest.status === 'rsvped' ? (
                         guest.rsvpAttendance === 'tidak_hadir' ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-300">
-                            <XCircle className="w-3 h-3 text-rose-700" />
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FFE4E6] bg-[#881337] px-2 py-0.5 rounded-md border border-[#BE123C]/40 whitespace-nowrap">
+                            <XCircle className="w-3 h-3 text-[#FDA4AF]" />
                             <span>Tidak Hadir</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full border border-teal-300">
-                            <CheckCircle2 className="w-3 h-3 text-teal-700" />
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#D1FAE5] bg-[#064E3B] px-2 py-0.5 rounded-md border border-[#047857]/40 whitespace-nowrap">
+                            <CheckCircle2 className="w-3 h-3 text-[#34D399]" />
                             <span>Sudah Konfirmasi {guest.rsvpGuests ? `(${guest.rsvpGuests} Pax)` : ''}</span>
                           </span>
                         )
                       ) : guest.status === 'opened' ? (
                         <span
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 shadow-xs"
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FEF3C7] bg-[#78350F] px-2 py-0.5 rounded-md border border-[#B45309]/40 whitespace-nowrap shadow-xs"
                           title={`Tamu telah membuka undangan pada ${guest.openedAtFormatted || ''}`}
                         >
-                          <Eye className="w-3 h-3 text-amber-700" />
-                          <span>Dibuka {guest.openedAtFormatted ? `• ${guest.openedAtFormatted}` : ''} (Belum RSVP)</span>
+                          <Eye className="w-3 h-3 text-[#FBBF24]" />
+                          <span>Dibuka {guest.openedAtFormatted ? `| ${guest.openedAtFormatted}` : ''} (Belum RSVP)</span>
                         </span>
                       ) : (
                         <span
-                          className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-300"
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-700 bg-slate-800/10 px-2 py-0.5 rounded-md border border-slate-300/60 whitespace-nowrap"
                           title="Tamu belum pernah membuka link undangan ini"
                         >
                           <Mail className="w-3 h-3 text-slate-500" />

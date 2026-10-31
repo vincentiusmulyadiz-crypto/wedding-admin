@@ -191,8 +191,8 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
     return {
       group: 'hadir',
       label: 'Akan Hadir',
-      colorClass: 'text-emerald-900 border-emerald-300 bg-emerald-50',
-      bgClass: 'bg-emerald-600',
+      colorClass: 'text-[#D1FAE5] border-[#047857]/50 bg-[#064E3B]',
+      bgClass: 'bg-[#064E3B]',
     };
   }
 
@@ -200,16 +200,16 @@ export function getAttendanceBadge(attendance: AttendanceType | string): {
     return {
       group: 'tidak_hadir',
       label: 'Tidak Hadir',
-      colorClass: 'text-rose-900 border-rose-300 bg-rose-50',
-      bgClass: 'bg-rose-600',
+      colorClass: 'text-[#FFE4E6] border-[#BE123C]/50 bg-[#881337]',
+      bgClass: 'bg-[#881337]',
     };
   }
 
   return {
     group: 'belum_pasti',
     label: 'Belum Pasti',
-    colorClass: 'text-amber-900 border-amber-300 bg-amber-50',
-    bgClass: 'bg-amber-600',
+    colorClass: 'text-[#FEF3C7] border-[#B45309]/50 bg-[#78350F]',
+    bgClass: 'bg-[#78350F]',
   };
 }
 

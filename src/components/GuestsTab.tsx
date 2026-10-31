@@ -682,8 +682,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           </p>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block bg-[#fffdfa] border border-[#e5dcce] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
-            <table className="w-full text-left text-xs">
+          <div className="hidden md:block bg-[#fffdfa] border border-[#e5dcce] rounded-2xl overflow-x-auto shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
+            <table className="w-full text-left text-xs min-w-[700px]">
               <thead className="bg-[#f5eedf] text-[#345761] font-bold border-b border-[#e5dcce]">
                 <tr>
                   <th className="py-3.5 px-4">Nama Tamu</th>
@@ -710,8 +710,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
 
                       {/* 2. Jumlah Tamu */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 font-semibold text-[#0e2c34] bg-[#f0ebd9] px-2 py-0.5 rounded-full border border-[#ded4be]">
-                          <Users className="w-3 h-3 text-[#0f3b47]" />
+                        <span className="inline-flex items-center gap-1 font-semibold text-xs text-[#0e2c34] whitespace-nowrap">
+                          <Users className="w-3.5 h-3.5 text-[#5e7d87]" />
                           <span>{item.guests}</span>
                         </span>
                       </td>
@@ -720,11 +720,11 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex flex-col items-start gap-1">
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.colorClass}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold border whitespace-nowrap ${badge.colorClass}`}
                           >
-                            {badge.group === 'hadir' && <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />}
-                            {badge.group === 'tidak_hadir' && <XCircle className="w-3.5 h-3.5 text-rose-600" />}
-                            {badge.group === 'belum_pasti' && <HelpCircle className="w-3.5 h-3.5 text-amber-600" />}
+                            {badge.group === 'hadir' && <CheckCircle2 className="w-3.5 h-3.5 text-[#34D399]" />}
+                            {badge.group === 'tidak_hadir' && <XCircle className="w-3.5 h-3.5 text-[#FDA4AF]" />}
+                            {badge.group === 'belum_pasti' && <HelpCircle className="w-3.5 h-3.5 text-[#FBBF24]" />}
                             <span>{badge.label}</span>
                           </span>
 
@@ -763,30 +763,30 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                   className="bg-[#fffdfa] border border-[#e5dcce] rounded-2xl p-4 space-y-2.5 shadow-xs transition-all duration-200 hover:border-[#cdbe9f] hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] cursor-pointer"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <span className="font-bold text-[#0e2c34] text-sm block">
+                    <div className="space-y-1 min-w-0">
+                      <span className="font-bold text-[#0e2c34] text-xs sm:text-sm block [text-wrap:balance]">
                         {item.name}
                       </span>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span
-                          className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${badge.colorClass}`}
+                          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap border ${badge.colorClass}`}
                         >
-                          {badge.group === 'hadir' && <CheckCircle2 className="w-3 h-3 text-teal-600" />}
-                          {badge.group === 'tidak_hadir' && <XCircle className="w-3 h-3 text-rose-600" />}
-                          {badge.group === 'belum_pasti' && <HelpCircle className="w-3 h-3 text-amber-600" />}
+                          {badge.group === 'hadir' && <CheckCircle2 className="w-3 h-3 text-[#34D399]" />}
+                          {badge.group === 'tidak_hadir' && <XCircle className="w-3 h-3 text-[#FDA4AF]" />}
+                          {badge.group === 'belum_pasti' && <HelpCircle className="w-3 h-3 text-[#FBBF24]" />}
                           <span>{badge.label}</span>
                         </span>
                         {eventDetail && (
-                          <span className="text-[10px] text-[#52717b] font-medium">
+                          <span className="text-[10px] text-[#52717b] font-medium whitespace-nowrap">
                             ({eventDetail})
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center gap-1 font-semibold text-xs text-[#0e2c34] bg-[#f0ebd9] px-2.5 py-1 rounded-full border border-[#ded4be] shrink-0">
+                    <span className="inline-flex items-center gap-1 font-semibold text-[11px] text-[#0e2c34] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be] shrink-0 whitespace-nowrap">
                       <Users className="w-3 h-3 text-[#0f3b47]" />
-                      <span>{item.guests} tamu</span>
+                      <span>{item.guests} Tamu</span>
                     </span>
                   </div>
 
@@ -887,11 +887,11 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[#52717b]">Status Kehadiran:</span>
                       <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${badge.colorClass}`}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap ${badge.colorClass}`}
                       >
-                        {badge.group === 'hadir' && <CheckCircle2 className="w-4 h-4 text-teal-600" />}
-                        {badge.group === 'tidak_hadir' && <XCircle className="w-4 h-4 text-rose-600" />}
-                        {badge.group === 'belum_pasti' && <HelpCircle className="w-4 h-4 text-amber-600" />}
+                        {badge.group === 'hadir' && <CheckCircle2 className="w-4 h-4 text-[#34D399]" />}
+                        {badge.group === 'tidak_hadir' && <XCircle className="w-4 h-4 text-[#FDA4AF]" />}
+                        {badge.group === 'belum_pasti' && <HelpCircle className="w-4 h-4 text-[#FBBF24]" />}
                         <span>{badge.label}</span>
                       </span>
                     </div>
