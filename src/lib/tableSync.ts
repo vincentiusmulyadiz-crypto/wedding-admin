@@ -245,11 +245,28 @@ export async function setCustomerFeatureToggle(
     const supabase = getSupabase();
     const existing = await loadSharedConfigFromCloud(cust);
 
+    let existingRowId: string | null = null;
+    let rawExisting: Record<string, any> = {};
+    try {
+      const { data: row } = await supabase
+        .from('guests')
+        .select('id, phone')
+        .eq('customer_id', cust.id)
+        .eq('code', RESERVED_CONFIG_CODE)
+        .maybeSingle();
+      if (row?.id) existingRowId = row.id;
+      if (row?.phone) {
+        const parsed = JSON.parse(row.phone);
+        if (parsed && typeof parsed === 'object') rawExisting = parsed;
+      }
+    } catch {}
+
     const currentQr = feature === 'qrCheckin' ? enabled : existing.qrCheckinEnabled;
     const currentTable = feature === 'tableManagement' ? enabled : existing.tableManagementEnabled;
     const currentCategory = feature === 'guestCategory' ? enabled : existing.guestCategoryEnabled;
 
     const payloadStr = JSON.stringify({
+      ...rawExisting,
       tables: existing.tables || [],
       guestMeta: existing.guestMeta || {},
       qrCheckinEnabled: currentQr,
@@ -258,17 +275,16 @@ export async function setCustomerFeatureToggle(
       updatedAt: new Date().toISOString(),
     });
 
-    await supabase
-      .from('guests')
-      .delete()
-      .eq('customer_id', cust.id)
-      .eq('code', RESERVED_CONFIG_CODE);
-    await supabase.from('guests').insert({
-      customer_id: cust.id,
-      name: RESERVED_CONFIG_CODE,
-      code: RESERVED_CONFIG_CODE,
-      phone: payloadStr,
-    });
+    if (existingRowId) {
+      await supabase.from('guests').update({ phone: payloadStr }).eq('id', existingRowId);
+    } else {
+      await supabase.from('guests').insert({
+        customer_id: cust.id,
+        name: RESERVED_CONFIG_CODE,
+        code: RESERVED_CONFIG_CODE,
+        phone: payloadStr,
+      });
+    }
 
     // Broadcast across devices / QR Checkin tabs
     try {
@@ -401,7 +417,24 @@ export async function saveSharedConfigToCloud(
       mergedGuestMeta = existing.guestMeta || {};
     }
 
+    let existingRowId: string | null = null;
+    let rawExisting: Record<string, any> = {};
+    try {
+      const { data: row } = await supabase
+        .from('guests')
+        .select('id, phone')
+        .eq('customer_id', cust.id)
+        .eq('code', RESERVED_CONFIG_CODE)
+        .maybeSingle();
+      if (row?.id) existingRowId = row.id;
+      if (row?.phone) {
+        const parsed = JSON.parse(row.phone);
+        if (parsed && typeof parsed === 'object') rawExisting = parsed;
+      }
+    } catch {}
+
     const payloadStr = JSON.stringify({
+      ...rawExisting,
       tables,
       guestMeta: mergedGuestMeta,
       qrCheckinEnabled: isQrCheckinEnabled(cust),
@@ -410,17 +443,16 @@ export async function saveSharedConfigToCloud(
       updatedAt: new Date().toISOString(),
     });
 
-    await supabase
-      .from('guests')
-      .delete()
-      .eq('customer_id', cust.id)
-      .eq('code', RESERVED_CONFIG_CODE);
-    await supabase.from('guests').insert({
-      customer_id: cust.id,
-      name: RESERVED_CONFIG_CODE,
-      code: RESERVED_CONFIG_CODE,
-      phone: payloadStr,
-    });
+    if (existingRowId) {
+      await supabase.from('guests').update({ phone: payloadStr }).eq('id', existingRowId);
+    } else {
+      await supabase.from('guests').insert({
+        customer_id: cust.id,
+        name: RESERVED_CONFIG_CODE,
+        code: RESERVED_CONFIG_CODE,
+        phone: payloadStr,
+      });
+    }
 
     try {
       const {
