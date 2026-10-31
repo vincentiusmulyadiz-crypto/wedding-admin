@@ -107,19 +107,13 @@ export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-[#DFD0B8]" />
-                  <span>Memeriksa kredensial...</span>
+                  <span>memeriksa akun...</span>
                 </>
               ) : (
                 <span>Masuk ke Dashboard</span>
               )}
             </button>
           </form>
-
-          <div className="mt-5 pt-4 border-t border-[#ede5d4] text-center">
-            <p className="text-xs text-[#52717b] leading-relaxed">
-              Akses khusus pengantin dan administrator yang telah terdaftar.
-            </p>
-          </div>
         </div>
 
         {/* Joyever Logo positioned below the login box */}
