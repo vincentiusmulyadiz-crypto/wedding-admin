@@ -122,23 +122,55 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
 }
 
 /**
- * Formats couple slug or names into clean uppercase code, e.g.:
- * "Indah & Ricky" -> "INDAH-RICKY"
- * "indah-ricky" -> "INDAH-RICKY"
- * "Rima & Noval" -> "RIMA-NOVAL"
- * "Romeo & Juliet" -> "ROMEO-JULIET"
+ * Extracts clean, concise couple initials (e.g. "IR" for "Indah & Ricky", "indah-ricky", "indah&ricky").
+ * Following anti-slop & ponytail principles: deterministic, compact, human-readable, no random clutter.
+ */
+export function extractCoupleInitials(coupleIdentifier?: string): string {
+  if (!coupleIdentifier) return 'WD';
+  const clean = coupleIdentifier
+    .replace(/^https?:\/\//i, '')
+    .replace(/\.joyever\.id.*$/i, '')
+    .replace(/\.joyever.*$/i, '')
+    .trim();
+
+  // 1. Delimiter-separated names: '&', 'dan', 'and', '-', '_', '+', '/', ','
+  const parts = clean
+    .split(/\s*(?:&|\bdan\b|\band\b|[-_+/,])\s*/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    const firstInitial = (parts[0].match(/[a-zA-Z]/) || [''])[0];
+    const secondInitial = (parts[1].match(/[a-zA-Z]/) || [''])[0];
+    if (firstInitial && secondInitial) {
+      return (firstInitial + secondInitial).toUpperCase();
+    }
+  }
+
+  // 2. Space-separated words (e.g. "Indah Ricky")
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    const firstInitial = (words[0].match(/[a-zA-Z]/) || [''])[0];
+    const secondInitial = (words[1].match(/[a-zA-Z]/) || [''])[0];
+    if (firstInitial && secondInitial) {
+      return (firstInitial + secondInitial).toUpperCase();
+    }
+  }
+
+  // 3. Fallback: first two alphabetic characters or 'WD'
+  const letters = clean.replace(/[^a-zA-Z]/g, '').toUpperCase();
+  return letters.slice(0, 2) || 'WD';
+}
+
+/**
+ * Formats couple identifier into clean 2-letter uppercase initials code:
+ * "Indah & Ricky" -> "IR"
+ * "indah-ricky" -> "IR"
+ * "indah&ricky" -> "IR"
+ * "Romeo & Juliet" -> "RJ"
  */
 export function formatCoupleCode(coupleIdentifier?: string): string {
-  if (!coupleIdentifier) return 'WEDDING';
-  let clean = coupleIdentifier.replace(/\.joyever\.id$/i, '').trim();
-  clean = clean
-    .replace(/&/g, '-')
-    .replace(/[^a-zA-Z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .toUpperCase();
-  return clean || 'WEDDING';
+  return extractCoupleInitials(coupleIdentifier);
 }
 
 /**
