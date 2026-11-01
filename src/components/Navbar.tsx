@@ -26,6 +26,7 @@ interface NavbarProps {
   userEmail: string | null;
   onLogout: () => void;
   onOpenConfig: () => void;
+  canConfigureSupabase?: boolean;
   hasQrCheckin?: boolean;
   hasTableManagement?: boolean;
 }
@@ -40,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   userEmail,
   onLogout,
   onOpenConfig,
+  canConfigureSupabase = false,
   hasQrCheckin = true,
   hasTableManagement,
 }) => {
@@ -182,14 +184,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* User Controls (Desktop & Mobile Header Actions) */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={onOpenConfig}
-                title="Pengaturan Database Supabase"
-                className="p-2 rounded-xl text-[#DFD0B8] hover:text-white hover:bg-[#16516b] border border-transparent hover:border-[#206383] transition"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
+              {canConfigureSupabase && (
+                <button
+                  type="button"
+                  onClick={onOpenConfig}
+                  title="Pengaturan Database Supabase (Khusus Super Admin)"
+                  className="p-2 rounded-xl text-[#DFD0B8] hover:text-white hover:bg-[#16516b] border border-transparent hover:border-[#206383] transition"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
 
               {userEmail && (
                 <span

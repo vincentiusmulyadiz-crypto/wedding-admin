@@ -56,6 +56,16 @@ export function App() {
   const [copiedUid, setCopiedUid] = useState<boolean>(false);
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
 
+  // Super Admin Check (strictly limited to master account)
+  const isSuperAdmin = useMemo(() => {
+    const uid = session?.user?.id;
+    const email = session?.user?.email?.toLowerCase();
+    return (
+      uid === '588f3f17-6a41-4d87-ae68-1daba86f5f92' ||
+      email === 'vincentiusmulyadiz@gmail.com'
+    );
+  }, [session]);
+
   // Check if active selected customer has features enabled
   const [featureToggledTick, setFeatureToggledTick] = useState(0);
 
@@ -350,7 +360,10 @@ export function App() {
         onSelectTab={setActiveTab}
         userEmail={session.user.email || null}
         onLogout={handleLogout}
-        onOpenConfig={() => setConfigOpen(true)}
+        canConfigureSupabase={isSuperAdmin}
+        onOpenConfig={() => {
+          if (isSuperAdmin) setConfigOpen(true);
+        }}
         hasQrCheckin={hasQrCheckin}
         hasTableManagement={hasTableManagement}
       />
@@ -556,15 +569,17 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
         </div>
       </footer>
 
-      {/* Supabase Configuration Modal */}
-      <ConfigModal
-        isOpen={configOpen}
-        onClose={() => setConfigOpen(false)}
-        onSaved={() => {
-          checkSession();
-          fetchCustomers();
-        }}
-      />
+      {/* Supabase Configuration Modal - strictly accessible only by Super Admin */}
+      {isSuperAdmin && (
+        <ConfigModal
+          isOpen={configOpen}
+          onClose={() => setConfigOpen(false)}
+          onSaved={() => {
+            checkSession();
+            fetchCustomers();
+          }}
+        />
+      )}
     </div>
   );
 }
