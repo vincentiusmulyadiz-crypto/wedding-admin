@@ -124,7 +124,7 @@ export const isAlfredoYanaCustomer = (cust: Customer): boolean => {
   const s = (cust.slug || '').toLowerCase();
   const n = (cust.couple_names || '').toLowerCase();
 
-  // Pastikan BUKAN pasangan lain (Indah & Ricky, Dita & Fachrul, Risa & Adi, Herman & Vonny, dll.)
+  // Pastikan BUKAN pasangan lain (Indah & Ricky, Dita & Fachrul, Risa & Adi, Herman & Vonny, Seno & Jattu, dll.)
   if (
     n.includes('indah') ||
     n.includes('ricky') ||
@@ -141,7 +141,11 @@ export const isAlfredoYanaCustomer = (cust: Customer): boolean => {
     n.includes('herman') ||
     n.includes('vonny') ||
     s.includes('herman') ||
-    s.includes('vonny')
+    s.includes('vonny') ||
+    n.includes('seno') ||
+    n.includes('jattu') ||
+    s.includes('seno') ||
+    s.includes('jattu')
   ) {
     return false;
   }
@@ -156,20 +160,23 @@ export const isAlfredoYanaCustomer = (cust: Customer): boolean => {
   );
 };
 
-// Deteksi apakah daftar tamu ini adalah salinan bocoran dari Alfredo & Yana
+// Deteksi apakah daftar tamu ini adalah salinan bocoran masal dari Alfredo & Yana
 const isLeakedAlfredoGuestList = (list: InvitedGuest[], meta?: any): boolean => {
-  if (!Array.isArray(list) || list.length === 0) return false;
+  // Undangan baru dengan jumlah tamu sedikit (< 8 tamu) tidak pernah dianggap bocoran
+  if (!Array.isArray(list) || list.length < 8) return false;
   if (isSampleGuestList(list)) return false;
+
+  const threshold = Math.max(8, Math.floor(list.length * 0.6));
 
   // 1. Cek terhadap primary_guest_records di metadata Supabase Auth
   if (meta) {
     const primary = Array.isArray(meta.primary_guest_records) ? meta.primary_guest_records : [];
-    if (primary.length > 0) {
+    if (primary.length >= 8) {
       const primaryNames = new Set(
         primary.map((g: any) => (g && typeof g.name === 'string' ? g.name.trim().toLowerCase() : '')).filter(Boolean)
       );
       const matchCount = list.filter((g) => primaryNames.has((g.name || '').trim().toLowerCase())).length;
-      if (matchCount > 0 && matchCount >= Math.min(3, list.length)) {
+      if (matchCount >= threshold) {
         return true;
       }
     }
@@ -190,12 +197,12 @@ const isLeakedAlfredoGuestList = (list: InvitedGuest[], meta?: any): boolean => 
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
+            if (Array.isArray(parsed) && parsed.length >= 8) {
               const legacyNames = new Set(
                 parsed.map((g: any) => (g && typeof g.name === 'string' ? g.name.trim().toLowerCase() : '')).filter(Boolean)
               );
               const matchCount = list.filter((g) => legacyNames.has((g.name || '').trim().toLowerCase())).length;
-              if (matchCount > 0 && matchCount >= Math.min(3, list.length)) {
+              if (matchCount >= threshold) {
                 return true;
               }
             }
@@ -595,11 +602,14 @@ export const saveGuestsToCloud = async (
         });
       }
 
-      await supabase
+      const { error: delErr } = await supabase
         .from('guests')
         .delete()
         .eq('customer_id', cust.id)
         .neq('code', RESERVED_CONFIG_CODE);
+      if (delErr) {
+        console.warn('[saveGuestsToCloud] Supabase delete warning:', delErr.message);
+      }
 
       const guestMetaMap: Record<string, GuestExtendedMeta> = {};
 
@@ -634,7 +644,10 @@ export const saveGuestsToCloud = async (
             opened_at: preservedOpenedAt,
           };
         });
-        await supabase.from('guests').insert(rows);
+        const { error: insErr } = await supabase.from('guests').insert(rows);
+        if (insErr) {
+          console.warn('[saveGuestsToCloud] Supabase insert warning:', insErr.message);
+        }
       }
 
       // Sinkronkan juga metadata kategori & meja ke baris konfigurasi bersama agar Usher di QR Check-in bisa langsung membacanya
@@ -700,7 +713,7 @@ export const saveBaseUrlToCloud = async (cust: Customer, url: string) => {
       const meta = user.user_metadata || {};
       const baseUrlsV3 =
         meta.base_urls_v3 && typeof meta.base_urls_v3 === 'object' ? meta.base_urls_v3 : {};
-      await supabase.auth.updateUser({
+      const { error: updErr } = await supabase.auth.updateUser({
         data: {
           ...meta,
           base_urls_v3: {
@@ -709,6 +722,9 @@ export const saveBaseUrlToCloud = async (cust: Customer, url: string) => {
           },
         },
       });
+      if (updErr) {
+        console.warn('[saveBaseUrlToCloud] Error updating user metadata:', updErr.message);
+      }
     }
   } catch {}
 };
