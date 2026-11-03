@@ -71,6 +71,30 @@ export function resetStoredConfig(): void {
 
 let supabaseInstance: SupabaseClient | null = null;
 
+// Non-blocking lock prevents navigator.locks deadlocks across tabs or concurrent auth events
+const noOpLock = async <R>(
+  _name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>
+): Promise<R> => {
+  return await fn();
+};
+
+export function clearLocalAuthStorage(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('sb-') || k === 'supabase.auth.token')) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 function reinitClient(): SupabaseClient {
   const { url, key, isPlaceholder } = getStoredConfig();
   if (isPlaceholder) {
@@ -79,6 +103,7 @@ function reinitClient(): SupabaseClient {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        lock: noOpLock,
       },
     });
   } else {
@@ -86,6 +111,7 @@ function reinitClient(): SupabaseClient {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        lock: noOpLock,
       },
     });
   }

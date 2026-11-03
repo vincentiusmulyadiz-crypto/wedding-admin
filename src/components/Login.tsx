@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { getSupabase } from '../lib/supabase';
 import { translateAuthError } from '../lib/format';
 import logo from '../assets/logo.png';
 import { Lock, Mail, Loader2 } from 'lucide-react';
 
 interface LoginProps {
-  onSuccess: () => void;
+  onSuccess: (session?: Session) => void;
   onDemoLogin?: () => void;
 }
 
@@ -33,7 +34,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
       }
 
       if (data.session) {
-        onSuccess();
+        onSuccess(data.session);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat masuk';

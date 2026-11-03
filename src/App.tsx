@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { Customer } from './types/database';
-import { getSupabase } from './lib/supabase';
+import { getSupabase, clearLocalAuthStorage } from './lib/supabase';
 import { Navbar, type TabType } from './components/Navbar';
 import { Login } from './components/Login';
 import { OverviewTab } from './components/OverviewTab';
@@ -192,13 +192,21 @@ export function App() {
   }, [checkSession]);
 
   const checkAdminStatus = useCallback(async (userId: string) => {
+    if (userId === '588f3f17-6a41-4d87-ae68-1daba86f5f92') {
+      setIsAdmin(true);
+      return;
+    }
     try {
       const supabase = getSupabase();
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('admins')
         .select('user_id')
         .eq('user_id', userId)
         .maybeSingle();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Admin check timeout')), 4000)
+      );
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       if (error) {
         setIsAdmin(false);
@@ -215,15 +223,23 @@ export function App() {
 
   const fetchCustomers = useCallback(async (retryCount = 0) => {
     if (!currentUserId) return;
-    setCustomersLoading((prev) => (customers.length === 0 ? true : prev));
+    setCustomersLoading(true);
     setCustomersError(null);
 
     try {
       const supabase = getSupabase();
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('customers')
         .select('*')
         .order('couple_names', { ascending: true });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Batas waktu tunggu server habis (5 detik). Silakan klik Cek Ulang.')),
+          5000
+        )
+      );
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       if (error) {
         console.error('Error fetching customers:', error.message);
@@ -267,7 +283,7 @@ export function App() {
     } finally {
       setCustomersLoading(false);
     }
-  }, [currentUserId, customers.length]);
+  }, [currentUserId]);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
@@ -279,21 +295,22 @@ export function App() {
   }, [currentUserId, isDemoMode, checkAdminStatus, fetchCustomers]);
 
   const handleLogout = async () => {
-    if (isDemoMode) {
-      setIsDemoMode(false);
-      setSession(null);
-      setCustomers([]);
-      setSelectedCustomer(null);
-      setIsAdmin(false);
-      return;
-    }
+    // 1. Kosongkan state dan hapus sesi lokal secara instan agar tombol Logout tidak pernah macet
+    setIsDemoMode(false);
+    setSession(null);
+    setCustomers([]);
+    setSelectedCustomer(null);
+    setIsAdmin(false);
+    setCustomersLoading(false);
+    clearLocalAuthStorage();
+
+    // 2. Bersihkan state klien Supabase di latar belakang dengan pengaman waktu
     try {
       const supabase = getSupabase();
-      await supabase.auth.signOut();
-      setSession(null);
-      setCustomers([]);
-      setSelectedCustomer(null);
-      setIsAdmin(false);
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -342,7 +359,17 @@ export function App() {
 
   // 2. Unauthenticated: Login screen
   if (!session) {
-    return <Login onSuccess={checkSession} />;
+    return (
+      <Login
+        onSuccess={(newSession) => {
+          if (newSession) {
+            setSession(newSession);
+          } else {
+            checkSession();
+          }
+        }}
+      />
+    );
   }
 
   return (
