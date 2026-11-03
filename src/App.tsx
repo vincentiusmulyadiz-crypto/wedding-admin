@@ -52,8 +52,7 @@ interface ActiveToast {
 export function App() {
   const [session, setSession] = useState<Session | null>(() => {
     const stored = getStoredSessionFromLocalStorage();
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (stored && stored.expires_at && stored.expires_at > nowSec + 15) {
+    if (stored) {
       setActiveSession(stored);
       return stored;
     }
@@ -61,13 +60,20 @@ export function App() {
   });
   const [authLoading, setAuthLoading] = useState<boolean>(() => {
     const stored = getStoredSessionFromLocalStorage();
-    const nowSec = Math.floor(Date.now() / 1000);
-    return Boolean(stored && (!stored.expires_at || stored.expires_at <= nowSec + 15));
+    return !stored;
   });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState<boolean>(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    const stored = getStoredSessionFromLocalStorage();
+    const uid = stored?.user?.id;
+    const email = stored?.user?.email?.toLowerCase();
+    return (
+      uid === '588f3f17-6a41-4d87-ae68-1daba86f5f92' ||
+      email === 'vincentiusmulyadiz@gmail.com'
+    );
+  });
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [configOpen, setConfigOpen] = useState<boolean>(false);
   const [copiedUid, setCopiedUid] = useState<boolean>(false);
@@ -185,10 +191,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    // Safety release: ensure authLoading never blocks mobile screen indefinitely
+    // Safety release: ensure authLoading never blocks screen if network hangs
     const safetyTimer = setTimeout(() => {
       setAuthLoading(false);
-    }, 3500);
+    }, 1500);
 
     checkSession().finally(() => clearTimeout(safetyTimer));
 
@@ -247,35 +253,6 @@ export function App() {
     try {
       const supabase = getSupabase();
 
-      // Bersihkan otomatis user_metadata besar (guest_records_v3 / tables_v3) agar header JWT selalu ringan di mobile Safari
-      const userMeta = session?.user?.user_metadata;
-      if (
-        userMeta &&
-        (userMeta.guest_records_v3 ||
-          userMeta.guest_records ||
-          userMeta.primary_guest_records ||
-          userMeta.tables_v3 ||
-          userMeta.guest_meta_v3)
-      ) {
-        supabase.auth
-          .updateUser({
-            data: {
-              guest_records_v3: null,
-              guest_records: null,
-              primary_guest_records: null,
-              tables_v3: null,
-              guest_meta_v3: null,
-            },
-          })
-          .then(() => supabase.auth.refreshSession())
-          .then(({ data: refreshed }) => {
-            if (refreshed?.session) {
-              setActiveSession(refreshed.session);
-            }
-          })
-          .catch(() => {});
-      }
-
       const queryPromise = supabase
         .from('customers')
         .select('*')
@@ -283,7 +260,7 @@ export function App() {
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error('Batas waktu tunggu server habis. Silakan klik Segarkan.')),
-          10000
+          6000
         )
       );
 
@@ -331,7 +308,7 @@ export function App() {
       if (retryCount === 0) {
         setTimeout(() => {
           fetchCustomers(1);
-        }, 800);
+        }, 300);
         return;
       }
 
@@ -343,7 +320,7 @@ export function App() {
     } finally {
       setCustomersLoading(false);
     }
-  }, [currentUserId, session?.user?.user_metadata]);
+  }, [currentUserId]);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
@@ -459,7 +436,7 @@ export function App() {
 
       {/* Main Content Area: pb-24 on mobile so bottom nav does not obstruct content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-10">
-        {customersLoading ? (
+        {customersLoading && customers.length === 0 ? (
           <div className="py-20 flex flex-col items-center justify-center text-[#5e7d87] space-y-2">
             <Loader2 className="w-6 h-6 animate-spin text-[#0f3b47]/70" />
             <span className="text-[11px] tracking-widest font-medium text-[#0f3b47]/70">loading</span>

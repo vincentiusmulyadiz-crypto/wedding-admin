@@ -151,7 +151,10 @@ function reinitClient(): SupabaseClient {
 
   // Bypass GoTrueClient initializePromise bottleneck when activeSession or valid localStorage session is available
   const origGetSession = client.auth.getSession.bind(client.auth);
-  client.auth.getSession = async () => {
+  client.auth.getSession = (async (): Promise<
+    | { data: { session: Session }; error: null }
+    | { data: { session: null }; error: null }
+  > => {
     const nowSec = Math.floor(Date.now() / 1000);
     if (activeSession && (!activeSession.expires_at || activeSession.expires_at > nowSec + 15)) {
       return { data: { session: activeSession }, error: null };
@@ -162,20 +165,29 @@ function reinitClient(): SupabaseClient {
       return { data: { session: stored }, error: null };
     }
     try {
-      const fallbackTimer = new Promise<{ data: { session: null }; error: null }>((resolve) =>
+      const fallbackTimer = new Promise<{ data: { session: Session | null }; error: null }>((resolve) =>
         setTimeout(() => {
-          resolve({ data: { session: null }, error: null });
-        }, 8000)
+          // If network is slow or offline, return cached stored session so UI never locks up
+          resolve({ data: { session: stored || activeSession || null }, error: null });
+        }, 2500)
       );
       const res = await Promise.race([origGetSession(), fallbackTimer]);
       if (res.data?.session) {
         activeSession = res.data.session;
+        return { data: { session: res.data.session }, error: null };
+      } else if (stored) {
+        activeSession = stored;
+        return { data: { session: stored }, error: null };
       }
-      return res;
+      return { data: { session: null }, error: null };
     } catch {
+      if (stored) {
+        activeSession = stored;
+        return { data: { session: stored }, error: null };
+      }
       return { data: { session: null }, error: null };
     }
-  };
+  }) as typeof client.auth.getSession;
 
   supabaseInstance = client;
   return supabaseInstance;
