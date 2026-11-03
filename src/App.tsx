@@ -27,6 +27,7 @@ import {
   isQrCheckinEnabled,
   isTableManagementEnabled,
   isGuestCategoryEnabled,
+  isEventFilterEnabled,
 } from './lib/tableSync';
 import {
   Loader2,
@@ -114,6 +115,11 @@ export function App() {
 
   const hasGuestCategory = useMemo(
     () => (selectedCustomer ? isGuestCategoryEnabled(selectedCustomer) : false),
+    [selectedCustomer, featureToggledTick]
+  );
+
+  const hasEventFilter = useMemo(
+    () => (selectedCustomer ? isEventFilterEnabled(selectedCustomer) : false),
     [selectedCustomer, featureToggledTick]
   );
 
@@ -593,6 +599,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 hasQrCheckin={hasQrCheckin}
                 hasTableManagement={hasTableManagement}
                 hasGuestCategory={hasGuestCategory}
+                hasEventFilter={hasEventFilter}
               />
             )}
 

@@ -21,6 +21,7 @@ export interface GuestExtendedMeta {
   table_id?: string;
   seat_numbers?: string; // e.g. 'A1-01, A1-02'
   max_guests?: number;
+  event_filter?: 'all' | 'akad' | 'reception';
 }
 
 export const RESERVED_CONFIG_CODE = '__JOYEVER_CONFIG_V1__';
@@ -210,15 +211,32 @@ export function isGuestCategoryEnabled(cust: Customer, cloudEnabled?: boolean | 
   return isQrCheckinEnabled(cust);
 }
 
+export function isEventFilterEnabled(cust: Customer, cloudEnabled?: boolean | null): boolean {
+  if (typeof cloudEnabled === 'boolean') return cloudEnabled;
+  try {
+    if (cust.id) {
+      const stored = localStorage.getItem(`joyever_event_filter_enabled_${cust.id}`);
+      if (stored !== null) return stored === 'true';
+    }
+    if (cust.slug) {
+      const stored = localStorage.getItem(`joyever_event_filter_enabled_${cust.slug}`);
+      if (stored !== null) return stored === 'true';
+    }
+  } catch {}
+
+  return false;
+}
+
 export async function setCustomerFeatureToggle(
   cust: Customer,
-  feature: 'qrCheckin' | 'tableManagement' | 'guestCategory',
+  feature: 'qrCheckin' | 'tableManagement' | 'guestCategory' | 'eventFilter',
   enabled: boolean
 ): Promise<void> {
   const keyMap = {
     qrCheckin: 'joyever_qr_checkin_enabled',
     tableManagement: 'joyever_table_mgmt_enabled',
     guestCategory: 'joyever_guest_cat_enabled',
+    eventFilter: 'joyever_event_filter_enabled',
   };
   const prefix = keyMap[feature];
   try {
@@ -264,6 +282,7 @@ export async function setCustomerFeatureToggle(
     const currentQr = feature === 'qrCheckin' ? enabled : existing.qrCheckinEnabled;
     const currentTable = feature === 'tableManagement' ? enabled : existing.tableManagementEnabled;
     const currentCategory = feature === 'guestCategory' ? enabled : existing.guestCategoryEnabled;
+    const currentEventFilter = feature === 'eventFilter' ? enabled : existing.eventFilterEnabled;
 
     const payloadStr = JSON.stringify({
       ...rawExisting,
@@ -272,6 +291,7 @@ export async function setCustomerFeatureToggle(
       qrCheckinEnabled: currentQr,
       tableManagementEnabled: currentTable,
       guestCategoryEnabled: currentCategory,
+      eventFilterEnabled: currentEventFilter,
       updatedAt: new Date().toISOString(),
     });
 
@@ -319,12 +339,14 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
   qrCheckinEnabled: boolean;
   tableManagementEnabled: boolean;
   guestCategoryEnabled: boolean;
+  eventFilterEnabled: boolean;
 }> {
   let tables: WeddingTable[] | null = null;
   let guestMeta: Record<string, GuestExtendedMeta> = {};
   let qrCheckinEnabled = isQrCheckinEnabled(cust);
   let tableManagementEnabled = isTableManagementEnabled(cust);
   let guestCategoryEnabled = isGuestCategoryEnabled(cust);
+  let eventFilterEnabled = isEventFilterEnabled(cust);
 
   try {
     const supabase = getSupabase();
@@ -356,6 +378,9 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
           }
           if (parsed && typeof parsed.guestCategoryEnabled === 'boolean') {
             guestCategoryEnabled = parsed.guestCategoryEnabled;
+          }
+          if (parsed && typeof parsed.eventFilterEnabled === 'boolean') {
+            eventFilterEnabled = parsed.eventFilterEnabled;
           }
         } catch {
           // Ignore
@@ -392,7 +417,7 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
     tables = loadStoredTables(cust);
   }
 
-  return { tables, guestMeta, qrCheckinEnabled, tableManagementEnabled, guestCategoryEnabled };
+  return { tables, guestMeta, qrCheckinEnabled, tableManagementEnabled, guestCategoryEnabled, eventFilterEnabled };
 }
 
 /**
@@ -440,6 +465,7 @@ export async function saveSharedConfigToCloud(
       qrCheckinEnabled: isQrCheckinEnabled(cust),
       tableManagementEnabled: isTableManagementEnabled(cust),
       guestCategoryEnabled: isGuestCategoryEnabled(cust),
+      eventFilterEnabled: isEventFilterEnabled(cust),
       updatedAt: new Date().toISOString(),
     });
 

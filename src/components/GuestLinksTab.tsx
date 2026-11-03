@@ -19,6 +19,7 @@ import {
   isQrCheckinEnabled,
   isTableManagementEnabled,
   isGuestCategoryEnabled,
+  isEventFilterEnabled,
 } from '../lib/tableSync';
 import { EntrancePassModal } from './EntrancePassModal';
 import { normalizePhoneNumber, formatPhoneNumber } from '../lib/format';
@@ -46,6 +47,7 @@ import {
   Crown,
   QrCode,
   Armchair,
+  Filter,
 } from 'lucide-react';
 
 export interface InvitedGuest {
@@ -57,6 +59,7 @@ export interface InvitedGuest {
   category?: GuestCategory;
   group_name?: string;
   table_id?: string;
+  event_filter?: 'all' | 'akad' | 'reception';
   opened_at?: string | null;
 }
 
@@ -67,6 +70,7 @@ interface GuestLinksTabProps {
   hasQrCheckin?: boolean;
   hasTableManagement?: boolean;
   hasGuestCategory?: boolean;
+  hasEventFilter?: boolean;
 }
 
 const DEFAULT_WA_TEMPLATE = `Kepada Yth. {nama},
@@ -464,6 +468,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
             category: localGuest?.category || ext?.category || 'Reguler',
             group_name: localGuest?.group_name ?? ext?.group_name ?? '',
             table_id: localGuest?.table_id ?? ext?.table_id ?? '',
+            event_filter: (localGuest?.event_filter || ext?.event_filter || 'all') as any,
           };
         });
       }
@@ -573,7 +578,17 @@ export const saveGuestsToCloud = async (
             group_name: g.group_name || '',
             table_id: g.table_id || '',
             max_guests: quota,
+            event_filter: g.event_filter || 'all',
           };
+          if (validCode) {
+            guestMetaMap[validCode] = {
+              category: g.category || 'Reguler',
+              group_name: g.group_name || '',
+              table_id: g.table_id || '',
+              max_guests: quota,
+              event_filter: g.event_filter || 'all',
+            };
+          }
 
           return {
             customer_id: cust.id,
@@ -712,6 +727,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   hasQrCheckin = isQrCheckinEnabled(customer),
   hasTableManagement = isTableManagementEnabled(customer),
   hasGuestCategory = isGuestCategoryEnabled(customer),
+  hasEventFilter = isEventFilterEnabled(customer),
 }) => {
   const codesStorageKey = `guest_codes_${customer.id}`;
   const templateStorageKey = getWaTemplateStorageKey(customer);
@@ -759,6 +775,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickCategory, setQuickCategory] = useState<GuestCategory>('Reguler');
   const [quickTableId, setQuickTableId] = useState<string>('');
   const [quickGroup, setQuickGroup] = useState<string>('');
+  const [quickEventFilter, setQuickEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
 
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
@@ -767,6 +784,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [inputCategory, setInputCategory] = useState<GuestCategory>('Reguler');
   const [inputGroup, setInputGroup] = useState<string>('');
   const [inputTableId, setInputTableId] = useState<string>('');
+  const [inputEventFilter, setInputEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
   const [formError, setFormError] = useState<string | null>(null);
 
   // Batch Import Text & Options
@@ -1079,10 +1097,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       const separator = effectiveBase.includes('?') ? '&' : '?';
 
       // Link acak kini murni kode rahasia (?c=...) tanpa membocorkan parameter &pax=
+      const eventParam =
+        hasEventFilter && guest.event_filter && guest.event_filter !== 'all'
+          ? (guest.event_filter === 'akad' ? '&e=a' : '&e=r')
+          : '';
+
       const link =
         linkFormat === 'random'
-          ? `${effectiveBase}${separator}c=${code}`
-          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}`;
+          ? `${effectiveBase}${separator}c=${code}${eventParam}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}${eventParam}`;
 
       const lowerName = guest.name.trim().toLowerCase();
       const lowerCode = code.toLowerCase();
@@ -1215,6 +1238,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       category: quickCategory,
       group_name: hasQrCheckin && quickGroup.trim() ? quickGroup.trim() : undefined,
       table_id: quickTableId || undefined,
+      event_filter: hasEventFilter ? quickEventFilter : 'all',
       code: encodeGuestCode(trimmed, quickMaxGuests),
     };
 
@@ -1226,16 +1250,26 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setQuickCategory('Reguler');
     setQuickGroup('');
     setQuickTableId('');
+    setQuickEventFilter('all');
     showToast(`Tamu "${trimmed}" (${quickCategory} • Jatah: ${quickMaxGuests} Tamu) berhasil ditambahkan!`, 'success');
   };
 
-  // Quick Change Guest Category or Table inline
+  // Quick Change Guest Category, Table, or Event inline
   const handleQuickAssignTable = (guestId: string, tableId: string) => {
     const nextList = guests.map((g) =>
       g.id === guestId ? { ...g, table_id: tableId || undefined } : g
     );
     updateAndPersistGuests(nextList);
     showToast('Penempatan meja tamu berhasil diperbarui!', 'success');
+  };
+
+  const handleQuickAssignEventFilter = (guestId: string, eventFilter: 'all' | 'akad' | 'reception') => {
+    const nextList = guests.map((g) =>
+      g.id === guestId ? { ...g, event_filter: eventFilter } : g
+    );
+    updateAndPersistGuests(nextList);
+    const label = eventFilter === 'akad' ? 'Akad Saja' : eventFilter === 'reception' ? 'Resepsi Saja' : 'Keduanya';
+    showToast(`Tamu diundang ke: "${label}"`, 'success');
   };
 
   // Edit Handler for modal
@@ -1247,6 +1281,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setInputCategory(guest.category || 'Reguler');
     setInputGroup(guest.group_name || '');
     setInputTableId(guest.table_id || '');
+    setInputEventFilter(guest.event_filter || 'all');
     setFormError(null);
     setShowAddModal(true);
   };
@@ -1271,6 +1306,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               category: inputCategory,
               group_name: inputGroup.trim() || undefined,
               table_id: inputTableId || undefined,
+              event_filter: hasEventFilter ? inputEventFilter : 'all',
               code: encodeGuestCode(trimmedName, inputMaxGuests),
             }
           : g
@@ -1285,6 +1321,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         category: inputCategory,
         group_name: inputGroup.trim() || undefined,
         table_id: inputTableId || undefined,
+        event_filter: hasEventFilter ? inputEventFilter : 'all',
         code: encodeGuestCode(trimmedName, inputMaxGuests),
       };
       nextList = [newGuest, ...guests];
@@ -1526,6 +1563,21 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               <option value={6}>6 Tamu</option>
             </select>
           </div>
+
+          {hasEventFilter && (
+            <div className="sm:col-span-2">
+              <select
+                value={quickEventFilter}
+                onChange={(e) => setQuickEventFilter(e.target.value as any)}
+                className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                title="Pilihan Acara yang Diundang (Akad / Resepsi / Keduanya)"
+              >
+                <option value="all">Keduanya</option>
+                <option value="akad">Akad Saja</option>
+                <option value="reception">Resepsi Saja</option>
+              </select>
+            </div>
+          )}
 
           <div className="sm:col-span-2">
             <button
@@ -1781,6 +1833,23 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                                 MEJA {t.code || t.name} ({t.capacity} Kursi)
                               </option>
                             ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Quick Event Filter Selector */}
+                      {hasEventFilter && (
+                        <div className="inline-flex items-center gap-1 bg-white/90 border border-[#d6cbb5] rounded-md px-2 py-0.5 text-[11px]">
+                          <Filter className="w-3 h-3 text-rose-700 shrink-0" />
+                          <select
+                            value={guest.event_filter || 'all'}
+                            onChange={(e) => handleQuickAssignEventFilter(guest.id, e.target.value as any)}
+                            className="bg-transparent text-[#0e2c34] font-semibold focus:outline-none cursor-pointer text-[11px]"
+                            title="Pilih Acara yang Diundang (Akad / Resepsi / Keduanya)"
+                          >
+                            <option value="all">Keduanya</option>
+                            <option value="akad">Akad Saja</option>
+                            <option value="reception">Resepsi Saja</option>
                           </select>
                         </div>
                       )}
@@ -2129,6 +2198,23 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                     <option value={4}>4 Orang</option>
                     <option value={5}>5 Orang</option>
                     <option value={6}>6 Orang</option>
+                  </select>
+                </div>
+              )}
+
+              {hasEventFilter && (
+                <div>
+                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                    Pilihan Acara yang Diundang
+                  </label>
+                  <select
+                    value={inputEventFilter}
+                    onChange={(e) => setInputEventFilter(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                  >
+                    <option value="all">Keduanya (Akad & Resepsi)</option>
+                    <option value="akad">Akad Saja</option>
+                    <option value="reception">Resepsi Saja</option>
                   </select>
                 </div>
               )}

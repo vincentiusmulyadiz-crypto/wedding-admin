@@ -6,6 +6,7 @@ import {
   isQrCheckinEnabled,
   isTableManagementEnabled,
   isGuestCategoryEnabled,
+  isEventFilterEnabled,
   setCustomerFeatureToggle,
 } from '../lib/tableSync';
 import {
@@ -22,6 +23,7 @@ import {
   QrCode,
   Armchair,
   Crown,
+  Filter,
 } from 'lucide-react';
 
 interface CustomerAdminTabProps {
@@ -43,6 +45,7 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
         qrCheckin: boolean;
         tableManagement: boolean;
         guestCategory: boolean;
+        eventFilter: boolean;
       }
     >
   >({});
@@ -55,6 +58,7 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
         qrCheckin: boolean;
         tableManagement: boolean;
         guestCategory: boolean;
+        eventFilter: boolean;
       }
     > = {};
     customers.forEach((c) => {
@@ -62,6 +66,7 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
         qrCheckin: isQrCheckinEnabled(c),
         tableManagement: isTableManagementEnabled(c),
         guestCategory: isGuestCategoryEnabled(c),
+        eventFilter: isEventFilterEnabled(c),
       };
     });
     setFeatureMap(initialMap);
@@ -69,12 +74,13 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
 
   const handleToggleFeature = async (
     customer: Customer,
-    feature: 'qrCheckin' | 'tableManagement' | 'guestCategory'
+    feature: 'qrCheckin' | 'tableManagement' | 'guestCategory' | 'eventFilter'
   ) => {
     const currentFlags = featureMap[customer.id] || {
       qrCheckin: isQrCheckinEnabled(customer),
       tableManagement: isTableManagementEnabled(customer),
       guestCategory: isGuestCategoryEnabled(customer),
+      eventFilter: isEventFilterEnabled(customer),
     };
     const nextVal = !currentFlags[feature];
     const key = `${customer.id}_${feature}`;
@@ -322,10 +328,12 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                     qrCheckin: isQrCheckinEnabled(c),
                     tableManagement: isTableManagementEnabled(c),
                     guestCategory: isGuestCategoryEnabled(c),
+                    eventFilter: isEventFilterEnabled(c),
                   };
                   const isBusyQr = togglingMap[`${c.id}_qrCheckin`];
                   const isBusyTable = togglingMap[`${c.id}_tableManagement`];
                   const isBusyCat = togglingMap[`${c.id}_guestCategory`];
+                  const isBusyEvent = togglingMap[`${c.id}_eventFilter`];
 
                   return (
                     <div className="pt-2.5 border-t border-[#ede5d4] space-y-2">
@@ -334,11 +342,11 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                           Fitur & Akses Terhubung:
                         </span>
                         <span className="text-[9px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          Sinkron ke QR Check-In
+                          Sinkron ke QR Check-In & Undangan
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {/* 1. Toggle QR Check-In */}
                         <div
                           className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
@@ -468,6 +476,51 @@ export const CustomerAdminTab: React.FC<CustomerAdminTabProps> = ({
                               <span
                                 className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
                                   flags.guestCategory ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 4. Toggle Filter Acara */}
+                        <div
+                          className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
+                            flags.eventFilter
+                              ? 'bg-[#fffdfa] border-rose-300 shadow-2xs'
+                              : 'bg-[#f4efe3] border-[#ded4be] opacity-75'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Filter
+                              className={`w-3.5 h-3.5 ${
+                                flags.eventFilter ? 'text-rose-600' : 'text-[#6a8790]'
+                              }`}
+                            />
+                            <span className="font-bold text-[11px] text-[#0f3b47]">
+                              Filter Acara
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-[#ede5d4]">
+                            <span
+                              className={`text-[10px] font-extrabold ${
+                                flags.eventFilter ? 'text-rose-700' : 'text-[#6d8a93]'
+                              }`}
+                            >
+                              {flags.eventFilter ? 'Aktif' : 'Off'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isBusyEvent}
+                              onClick={() => handleToggleFeature(c, 'eventFilter')}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out items-center px-0.5 ${
+                                flags.eventFilter ? 'bg-rose-600' : 'bg-[#c5b89e]'
+                              } disabled:opacity-50`}
+                              title="Aktifkan / Nonaktifkan Filter Acara (Akad / Resepsi / Keduanya)"
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                                  flags.eventFilter ? 'translate-x-4' : 'translate-x-0'
                                 }`}
                               />
                             </button>
