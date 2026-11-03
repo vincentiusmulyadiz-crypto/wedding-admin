@@ -777,6 +777,32 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickGroup, setQuickGroup] = useState<string>('');
   const [quickEventFilter, setQuickEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
 
+  // Active Event Filter Feature Flag
+  const [activeEventFilter, setActiveEventFilter] = useState<boolean>(() => {
+    return Boolean(hasEventFilter || isEventFilterEnabled(customer));
+  });
+
+  useEffect(() => {
+    setActiveEventFilter(Boolean(hasEventFilter || isEventFilterEnabled(customer)));
+  }, [hasEventFilter, customer]);
+
+  useEffect(() => {
+    const handleFeatureEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        const { customerId, slug, feature, enabled } = customEvent.detail;
+        if (
+          (customerId === customer.id || slug === customer.slug || !customerId) &&
+          feature === 'eventFilter'
+        ) {
+          setActiveEventFilter(Boolean(enabled));
+        }
+      }
+    };
+    window.addEventListener('joyever:feature-toggled', handleFeatureEvent);
+    return () => window.removeEventListener('joyever:feature-toggled', handleFeatureEvent);
+  }, [customer.id, customer.slug]);
+
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
@@ -789,6 +815,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
   // Batch Import Text & Options
   const [batchText, setBatchText] = useState<string>('');
+  const [batchEventFilter, setBatchEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
   const [replaceExisting, setReplaceExisting] = useState<boolean>(false);
 
   // Search & Filter
@@ -820,6 +847,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     // 2. Sinkronkan dengan Supabase Cloud khusus untuk customer.id ini
     const syncFromCloud = async () => {
       try {
+        const sharedConfig = await loadSharedConfigFromCloud(customer);
+        if (!isCancelled && typeof sharedConfig.eventFilterEnabled === 'boolean') {
+          setActiveEventFilter(sharedConfig.eventFilterEnabled);
+        }
+
         const cloudGuests = await loadGuestsFromCloud(customer);
         if (isCancelled) return;
         setTables(loadStoredTables(customer));
@@ -1098,7 +1130,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
       // Link acak kini murni kode rahasia (?c=...) tanpa membocorkan parameter &pax=
       const eventParam =
-        hasEventFilter && guest.event_filter && guest.event_filter !== 'all'
+        activeEventFilter && guest.event_filter && guest.event_filter !== 'all'
           ? (guest.event_filter === 'akad' ? '&e=a' : '&e=r')
           : '';
 
@@ -1238,7 +1270,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       category: quickCategory,
       group_name: hasQrCheckin && quickGroup.trim() ? quickGroup.trim() : undefined,
       table_id: quickTableId || undefined,
-      event_filter: hasEventFilter ? quickEventFilter : 'all',
+      event_filter: activeEventFilter ? quickEventFilter : 'all',
       code: encodeGuestCode(trimmed, quickMaxGuests),
     };
 
@@ -1306,7 +1338,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               category: inputCategory,
               group_name: inputGroup.trim() || undefined,
               table_id: inputTableId || undefined,
-              event_filter: hasEventFilter ? inputEventFilter : 'all',
+              event_filter: activeEventFilter ? inputEventFilter : 'all',
               code: encodeGuestCode(trimmedName, inputMaxGuests),
             }
           : g
@@ -1321,7 +1353,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         category: inputCategory,
         group_name: inputGroup.trim() || undefined,
         table_id: inputTableId || undefined,
-        event_filter: hasEventFilter ? inputEventFilter : 'all',
+        event_filter: activeEventFilter ? inputEventFilter : 'all',
         code: encodeGuestCode(trimmedName, inputMaxGuests),
       };
       nextList = [newGuest, ...guests];
@@ -1409,6 +1441,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         name,
         phone,
         max_guests: maxGuests,
+        event_filter: activeEventFilter ? batchEventFilter : 'all',
         code: encodeGuestCode(name, maxGuests),
       };
     });
@@ -1488,16 +1521,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
       {/* LANGKAH 1: Tempel / Input Nama Tamu */}
       <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
-        <div className="border-b border-[#eee5d4] pb-3">
+        <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
           <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-[#0f3b47] text-white text-xs flex items-center justify-center font-bold">1</span>
             <span>Tempel & Tambah Nama Tamu</span>
           </h2>
+          {activeEventFilter && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+              <Filter className="w-3 h-3 text-amber-600" />
+              <span>Filter Acara Aktif</span>
+            </span>
+          )}
         </div>
 
         {/* Quick inline add form */}
         <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1">
-          <div className={hasQrCheckin ? "sm:col-span-3" : "sm:col-span-5"}>
+          <div className={hasQrCheckin ? "sm:col-span-3" : activeEventFilter ? "sm:col-span-3" : "sm:col-span-5"}>
             <input
               type="text"
               placeholder="Ketik Nama Tamu (contoh: Budi & Keluarga)"
@@ -1564,7 +1603,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </select>
           </div>
 
-          {hasEventFilter && (
+          {activeEventFilter && (
             <div className="sm:col-span-2">
               <select
                 value={quickEventFilter}
@@ -1572,7 +1611,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                 title="Pilihan Acara yang Diundang (Akad / Resepsi / Keduanya)"
               >
-                <option value="all">Keduanya</option>
+                <option value="all">Keduanya (Akad & Resepsi)</option>
                 <option value="akad">Akad Saja</option>
                 <option value="reception">Resepsi Saja</option>
               </select>
@@ -1838,7 +1877,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                       )}
 
                       {/* Quick Event Filter Selector */}
-                      {hasEventFilter && (
+                      {activeEventFilter && (
                         <div className="inline-flex items-center gap-1 bg-white/90 border border-[#d6cbb5] rounded-md px-2 py-0.5 text-[11px]">
                           <Filter className="w-3 h-3 text-rose-700 shrink-0" />
                           <select
@@ -2023,6 +2062,27 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
 
+            {activeEventFilter && (
+              <div className="bg-[#f0ebd9] border border-[#ded4be] rounded-2xl p-3 space-y-1.5">
+                <label className="block text-xs font-bold text-[#0e2c34] flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-[#0f3b47]" />
+                  <span>Pilihan Acara untuk Tamu yang Ditempel:</span>
+                </label>
+                <select
+                  value={batchEventFilter}
+                  onChange={(e) => setBatchEventFilter(e.target.value as any)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-xs font-semibold text-[#0e2c34] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                >
+                  <option value="all">Keduanya (Akad & Resepsi) - Format Standar</option>
+                  <option value="akad">Akad Saja (&e=a) - Tampil Detail Akad</option>
+                  <option value="reception">Resepsi Saja (&e=r) - Tampil Detail Resepsi</option>
+                </select>
+                <p className="text-[10px] text-[#52717b] leading-tight">
+                  Semua nama tamu yang ditempel sekaligus akan disetel ke pilihan acara ini.
+                </p>
+              </div>
+            )}
+
             <div className="bg-[#f0ebd9] border border-[#ded4be] rounded-2xl p-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -2202,7 +2262,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 </div>
               )}
 
-              {hasEventFilter && (
+              {activeEventFilter && (
                 <div>
                   <label className="block text-xs font-bold text-[#0e2c34] mb-1">
                     Pilihan Acara yang Diundang

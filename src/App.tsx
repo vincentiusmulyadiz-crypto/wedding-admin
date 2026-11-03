@@ -63,9 +63,25 @@ export function App() {
     const stored = getStoredSessionFromLocalStorage();
     return !stored;
   });
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    try {
+      const cached = localStorage.getItem('joyever_cached_customers');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [customersLoading, setCustomersLoading] = useState<boolean>(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
+    try {
+      const cached = localStorage.getItem('joyever_cached_customers');
+      const list: Customer[] = cached ? JSON.parse(cached) : [];
+      const savedId = localStorage.getItem('last_selected_customer_id');
+      return list.find((c) => c.id === savedId) || list[0] || null;
+    } catch {
+      return null;
+    }
+  });
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
     const stored = getStoredSessionFromLocalStorage();
     const uid = stored?.user?.id;
@@ -266,7 +282,7 @@ export function App() {
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error('Batas waktu tunggu server habis. Silakan klik Segarkan.')),
-          6000
+          12000
         )
       );
 
@@ -286,12 +302,22 @@ export function App() {
           }
         }
         console.error('Error fetching customers:', error.message);
-        setCustomersError(error.message);
+        setCustomers((prev) => {
+          if (prev.length === 0) {
+            setCustomersError(error.message);
+          }
+          return prev;
+        });
         return;
       }
 
       const list: Customer[] = (data as Customer[]) || [];
       setCustomers(list);
+      try {
+        localStorage.setItem('joyever_cached_customers', JSON.stringify(list));
+      } catch {
+        // ignore storage errors
+      }
 
       if (list.length > 0) {
         const savedId = localStorage.getItem('last_selected_customer_id');
@@ -314,7 +340,7 @@ export function App() {
       if (retryCount === 0) {
         setTimeout(() => {
           fetchCustomers(1);
-        }, 300);
+        }, 500);
         return;
       }
 
@@ -322,7 +348,12 @@ export function App() {
         ? 'Koneksi jaringan terputus atau tidak stabil (Load failed). Silakan klik tombol Segarkan di bawah.'
         : rawMsg;
 
-      setCustomersError(friendlyMsg);
+      setCustomers((prev) => {
+        if (prev.length === 0) {
+          setCustomersError(friendlyMsg);
+        }
+        return prev;
+      });
     } finally {
       setCustomersLoading(false);
     }

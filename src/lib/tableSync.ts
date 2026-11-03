@@ -372,15 +372,31 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
           }
           if (parsed && typeof parsed.qrCheckinEnabled === 'boolean') {
             qrCheckinEnabled = parsed.qrCheckinEnabled;
+            try {
+              if (cust.id) localStorage.setItem(`joyever_qr_checkin_enabled_${cust.id}`, String(qrCheckinEnabled));
+              if (cust.slug) localStorage.setItem(`joyever_qr_checkin_enabled_${cust.slug}`, String(qrCheckinEnabled));
+            } catch {}
           }
           if (parsed && typeof parsed.tableManagementEnabled === 'boolean') {
             tableManagementEnabled = parsed.tableManagementEnabled;
+            try {
+              if (cust.id) localStorage.setItem(`joyever_table_mgmt_enabled_${cust.id}`, String(tableManagementEnabled));
+              if (cust.slug) localStorage.setItem(`joyever_table_mgmt_enabled_${cust.slug}`, String(tableManagementEnabled));
+            } catch {}
           }
           if (parsed && typeof parsed.guestCategoryEnabled === 'boolean') {
             guestCategoryEnabled = parsed.guestCategoryEnabled;
+            try {
+              if (cust.id) localStorage.setItem(`joyever_guest_cat_enabled_${cust.id}`, String(guestCategoryEnabled));
+              if (cust.slug) localStorage.setItem(`joyever_guest_cat_enabled_${cust.slug}`, String(guestCategoryEnabled));
+            } catch {}
           }
           if (parsed && typeof parsed.eventFilterEnabled === 'boolean') {
             eventFilterEnabled = parsed.eventFilterEnabled;
+            try {
+              if (cust.id) localStorage.setItem(`joyever_event_filter_enabled_${cust.id}`, String(eventFilterEnabled));
+              if (cust.slug) localStorage.setItem(`joyever_event_filter_enabled_${cust.slug}`, String(eventFilterEnabled));
+            } catch {}
           }
         } catch {
           // Ignore
