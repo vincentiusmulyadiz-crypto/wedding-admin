@@ -363,12 +363,13 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
       }
     }
 
-    // 2. Fallback to Supabase auth user_metadata if present
+    // 2. Fallback to Supabase auth session user_metadata if present (without network call)
     if (!tables) {
       try {
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user;
         if (user?.user_metadata) {
           const meta = user.user_metadata;
           if (meta.tables_v3 && meta.tables_v3[custId]) {
@@ -409,7 +410,6 @@ export async function saveSharedConfigToCloud(
 
   try {
     const supabase = getSupabase();
-    const custId = cust.id || cust.slug;
 
     let mergedGuestMeta = guestMeta;
     if (!guestMeta) {
@@ -452,28 +452,6 @@ export async function saveSharedConfigToCloud(
         code: RESERVED_CONFIG_CODE,
         phone: payloadStr,
       });
-    }
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const meta = user.user_metadata || {};
-        const tablesV3 =
-          meta.tables_v3 && typeof meta.tables_v3 === 'object' ? { ...meta.tables_v3 } : {};
-        if (JSON.stringify(tables).length <= 3500) {
-          tablesV3[custId] = tables;
-          await supabase.auth.updateUser({
-            data: {
-              ...meta,
-              tables_v3: tablesV3,
-            },
-          });
-        }
-      }
-    } catch {
-      // Ignore
     }
   } catch (e) {
     console.warn('Could not sync table config to cloud:', e);

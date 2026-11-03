@@ -1,6 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { Customer } from './types/database';
-import { getSupabase, clearLocalAuthStorage } from './lib/supabase';
+import {
+  getSupabase,
+  clearLocalAuthStorage,
+  setActiveSession,
+  getStoredSessionFromLocalStorage,
+} from './lib/supabase';
 import { Navbar, type TabType } from './components/Navbar';
 import { Login } from './components/Login';
 import { OverviewTab } from './components/OverviewTab';
@@ -45,8 +50,20 @@ interface ActiveToast {
 }
 
 export function App() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [session, setSession] = useState<Session | null>(() => {
+    const stored = getStoredSessionFromLocalStorage();
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (stored && stored.expires_at && stored.expires_at > nowSec + 15) {
+      setActiveSession(stored);
+      return stored;
+    }
+    return null;
+  });
+  const [authLoading, setAuthLoading] = useState<boolean>(() => {
+    const stored = getStoredSessionFromLocalStorage();
+    const nowSec = Math.floor(Date.now() / 1000);
+    return Boolean(stored && (!stored.expires_at || stored.expires_at <= nowSec + 15));
+  });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState<boolean>(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -155,10 +172,10 @@ export function App() {
   }, []);
 
   const checkSession = useCallback(async () => {
-    setAuthLoading(true);
     try {
       const supabase = getSupabase();
       const { data } = await supabase.auth.getSession();
+      setActiveSession(data.session);
       setSession(data.session);
     } catch (err) {
       console.error('Session error:', err);
@@ -177,6 +194,7 @@ export function App() {
 
     const supabase = getSupabase();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setActiveSession(currentSession);
       setSession(currentSession);
       if (!currentSession) {
         setCustomers([]);
@@ -228,20 +246,62 @@ export function App() {
 
     try {
       const supabase = getSupabase();
+
+      // Bersihkan otomatis user_metadata besar (guest_records_v3 / tables_v3) agar header JWT selalu ringan di mobile Safari
+      const userMeta = session?.user?.user_metadata;
+      if (
+        userMeta &&
+        (userMeta.guest_records_v3 ||
+          userMeta.guest_records ||
+          userMeta.primary_guest_records ||
+          userMeta.tables_v3 ||
+          userMeta.guest_meta_v3)
+      ) {
+        supabase.auth
+          .updateUser({
+            data: {
+              guest_records_v3: null,
+              guest_records: null,
+              primary_guest_records: null,
+              tables_v3: null,
+              guest_meta_v3: null,
+            },
+          })
+          .then(() => supabase.auth.refreshSession())
+          .then(({ data: refreshed }) => {
+            if (refreshed?.session) {
+              setActiveSession(refreshed.session);
+            }
+          })
+          .catch(() => {});
+      }
+
       const queryPromise = supabase
         .from('customers')
         .select('*')
         .order('couple_names', { ascending: true });
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error('Batas waktu tunggu server habis (5 detik). Silakan klik Cek Ulang.')),
-          5000
+          () => reject(new Error('Batas waktu tunggu server habis. Silakan klik Segarkan.')),
+          10000
         )
       );
 
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       if (error) {
+        // Jika token sesi kadaluwarsa saat baru dibuka di mobile, refresh token 1x lalu ulangi otomatis
+        if (
+          retryCount === 0 &&
+          (error.code === 'PGRST301' || error.message.toLowerCase().includes('jwt'))
+        ) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          if (refreshed?.session) {
+            setActiveSession(refreshed.session);
+            setSession(refreshed.session);
+            return fetchCustomers(1);
+          }
+        }
         console.error('Error fetching customers:', error.message);
         setCustomersError(error.message);
         return;
@@ -267,23 +327,23 @@ export function App() {
       const rawMsg = err instanceof Error ? err.message : 'Gagal memuat data pelanggan';
       console.error('Error fetching customers:', err);
 
-      // Otomatis coba lagi 1x jika koneksi Safari/mobile terputus atau timeout
-      if (retryCount === 0 && (rawMsg.includes('Load failed') || rawMsg.includes('Failed to fetch'))) {
+      // Otomatis coba lagi 1x jika koneksi Safari/mobile lambat, terputus, atau timeout
+      if (retryCount === 0) {
         setTimeout(() => {
           fetchCustomers(1);
-        }, 1200);
+        }, 800);
         return;
       }
 
       const friendlyMsg = rawMsg.includes('Load failed')
-        ? 'Koneksi jaringan terputus atau header otorisasi akun terlalu besar (TypeError: Load failed). Silakan klik tombol Cek Ulang di bawah.'
+        ? 'Koneksi jaringan terputus atau tidak stabil (Load failed). Silakan klik tombol Segarkan di bawah.'
         : rawMsg;
 
       setCustomersError(friendlyMsg);
     } finally {
       setCustomersLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, session?.user?.user_metadata]);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
@@ -297,6 +357,7 @@ export function App() {
   const handleLogout = async () => {
     // 1. Kosongkan state dan hapus sesi lokal secara instan agar tombol Logout tidak pernah macet
     setIsDemoMode(false);
+    setActiveSession(null);
     setSession(null);
     setCustomers([]);
     setSelectedCustomer(null);
@@ -363,6 +424,7 @@ export function App() {
       <Login
         onSuccess={(newSession) => {
           if (newSession) {
+            setActiveSession(newSession);
             setSession(newSession);
           } else {
             checkSession();
@@ -402,18 +464,30 @@ export function App() {
             <Loader2 className="w-6 h-6 animate-spin text-[#0f3b47]/70" />
             <span className="text-[11px] tracking-widest font-medium text-[#0f3b47]/70">loading</span>
           </div>
+        ) : activeTab === 'customers' && isAdmin ? (
+          <CustomerAdminTab
+            customers={customers}
+            onRefreshCustomers={fetchCustomers}
+            currentUserId={session.user.id}
+          />
+        ) : activeTab === 'tutorial' ? (
+          <TutorialTab onSelectTab={setActiveTab} />
         ) : customers.length === 0 ? (
-          /* Empty state */
+          /* Empty or Error state */
           <div className="max-w-xl mx-auto my-10 bg-[#fffdfa] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 space-y-5 shadow-md">
             <div className="text-center space-y-2">
               <div className="w-14 h-14 rounded-2xl bg-[#f0ebd9] border border-[#d8cdb8] text-[#0f3b47] flex items-center justify-center mx-auto">
-                <FolderX className="w-7 h-7" />
+                {customersError ? <AlertTriangle className="w-7 h-7 text-rose-600" /> : <FolderX className="w-7 h-7" />}
               </div>
               <h2 className="text-xl font-bold text-[#0e2c34]">
-                Belum ada undangan untuk akun ini
+                {customersError ? 'Gagal memuat daftar undangan' : 'Belum ada undangan untuk akun ini'}
               </h2>
               <p className="text-xs text-[#5e7d87] max-w-md mx-auto leading-relaxed">
-                Akun <span className="text-[#0e2c34] font-mono font-bold">{session.user.email}</span> belum terhubung ke data undangan di database.
+                {customersError ? (
+                  <>Terjadi gangguan koneksi saat mengambil data untuk akun <span className="text-[#0e2c34] font-mono font-bold">{session.user.email}</span>.</>
+                ) : (
+                  <>Akun <span className="text-[#0e2c34] font-mono font-bold">{session.user.email}</span> belum terhubung ke data undangan di database.</>
+                )}
               </p>
             </div>
 
@@ -427,58 +501,62 @@ export function App() {
               </div>
             )}
 
-            {/* Kotak Informasi Akun & UID */}
-            <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#d8cdb8] space-y-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[#5e7d87] font-bold">UID Akun Anda:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(session.user.id);
-                    setCopiedUid(true);
-                    setTimeout(() => setCopiedUid(false), 2000);
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition ${
-                    copiedUid
-                      ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                      : 'bg-[#f0ebd9] border-[#d8cdb8] text-[#0f3b47] hover:bg-[#e6deca]'
-                  }`}
-                >
-                  {copiedUid ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedUid ? 'Tersalin!' : 'Salin UID'}</span>
-                </button>
-              </div>
-              <p className="font-mono text-[#0e2c34] font-bold text-[11px] break-all bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be]">
-                {session.user.id}
-              </p>
-            </div>
+            {!customersError && (
+              <>
+                {/* Kotak Informasi Akun & UID */}
+                <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#d8cdb8] space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#5e7d87] font-bold">UID Akun Anda:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(session.user.id);
+                        setCopiedUid(true);
+                        setTimeout(() => setCopiedUid(false), 2000);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition ${
+                        copiedUid
+                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                          : 'bg-[#f0ebd9] border-[#d8cdb8] text-[#0f3b47] hover:bg-[#e6deca]'
+                      }`}
+                    >
+                      {copiedUid ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedUid ? 'Tersalin!' : 'Salin UID'}</span>
+                    </button>
+                  </div>
+                  <p className="font-mono text-[#0e2c34] font-bold text-[11px] break-all bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be]">
+                    {session.user.id}
+                  </p>
+                </div>
 
-            {/* Petunjuk SQL Cepat */}
-            <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#d8cdb8] space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[#0e2c34]">Solusi Cepat via SQL Editor Supabase:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const sql = `INSERT INTO public.customers (slug, couple_names, event_date, owner_id) VALUES ('pernikahan-saya', 'Nama Pasangan', '2026-10-24', '${session.user.id}') ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`;
-                    navigator.clipboard.writeText(sql);
-                    setCopiedSql(true);
-                    setTimeout(() => setCopiedSql(false), 2000);
-                  }}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                    copiedSql ? 'text-emerald-700' : 'text-[#0f3b47] hover:underline'
-                  }`}
-                >
-                  {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedSql ? 'SQL Tersalin!' : 'Salin Query SQL'}</span>
-                </button>
-              </div>
-              <pre className="font-mono text-[10px] text-[#0e2c34] bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be] overflow-x-auto whitespace-pre-wrap font-semibold">
+                {/* Petunjuk SQL Cepat */}
+                <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#d8cdb8] space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#0e2c34]">Solusi Cepat via SQL Editor Supabase:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sql = `INSERT INTO public.customers (slug, couple_names, event_date, owner_id) VALUES ('pernikahan-saya', 'Nama Pasangan', '2026-10-24', '${session.user.id}') ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`;
+                        navigator.clipboard.writeText(sql);
+                        setCopiedSql(true);
+                        setTimeout(() => setCopiedSql(false), 2000);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
+                        copiedSql ? 'text-emerald-700' : 'text-[#0f3b47] hover:underline'
+                      }`}
+                    >
+                      {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSql ? 'SQL Tersalin!' : 'Salin Query SQL'}</span>
+                    </button>
+                  </div>
+                  <pre className="font-mono text-[10px] text-[#0e2c34] bg-[#fffdfa] p-2.5 rounded-xl border border-[#ded4be] overflow-x-auto whitespace-pre-wrap font-semibold">
 {`INSERT INTO public.customers (slug, couple_names, event_date, owner_id) 
 VALUES ('pernikahan-saya', 'Nama Pasangan', '2026-10-24', '${session.user.id}')
 ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
-              </pre>
-            </div>
+                  </pre>
+                </div>
+              </>
+            )}
 
             {/* Tombol Aksi */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
@@ -547,10 +625,6 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 customer={selectedCustomer}
                 userId={session.user.id}
               />
-            )}
-
-            {activeTab === 'tutorial' && (
-              <TutorialTab onSelectTab={setActiveTab} />
             )}
 
             {activeTab === 'customers' && isAdmin && (

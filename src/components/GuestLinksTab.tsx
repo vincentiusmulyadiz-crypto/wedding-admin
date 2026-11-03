@@ -429,63 +429,7 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
       localStorage.setItem(`tables_v3_${custId}`, JSON.stringify(sharedConfig.tables));
     }
 
-    // 1. Baca dari Supabase Auth user_metadata.guest_records_v3[cust.id] terlebih dahulu
-    try {
-      const { data: { user }, error: userErr } = await supabase.auth.getUser();
-      if (!userErr && user && user.user_metadata) {
-        const meta = user.user_metadata;
-        const guestRecordsV3 = meta.guest_records_v3;
-
-        if (
-          guestRecordsV3 &&
-          typeof guestRecordsV3 === 'object' &&
-          Object.prototype.hasOwnProperty.call(guestRecordsV3, custId)
-        ) {
-          const list = guestRecordsV3[custId];
-          if (Array.isArray(list)) {
-            // Jika BUKAN Alfredo & Yana, periksa apakah list v3 yang tersimpan adalah bocoran identik
-            if (!isAlfredoYanaCustomer(cust) && isLeakedAlfredoGuestList(list, meta)) {
-              console.warn(
-                `[Auto-Purge] Menghapus data tamu bocoran Alfredo & Yana dari dashboard ${
-                  cust.couple_names || cust.slug || cust.id
-                }`
-              );
-              await saveGuestsToCloud(cust, []);
-              localStorage.removeItem(getGuestStorageKey(cust));
-              return [];
-            }
-            return list.map((g: InvitedGuest) => {
-              const ext = sharedMeta[g.name?.trim().toLowerCase()] || (g.code ? sharedMeta[g.code] : undefined);
-              return {
-                ...g,
-                category: g.category || ext?.category || 'Reguler',
-                group_name: g.group_name ?? ext?.group_name ?? '',
-                table_id: g.table_id ?? ext?.table_id ?? '',
-              };
-            });
-          }
-        }
-
-        // Migrasi legacy satu kali HANYA untuk dashboard Alfredo & Yana
-        if (isAlfredoYanaCustomer(cust)) {
-          const legacyRecords = meta.guest_records;
-          const legacyList =
-            (legacyRecords && typeof legacyRecords === 'object'
-              ? legacyRecords[cust.id] || (cust.slug ? legacyRecords[cust.slug] : null)
-              : null) ||
-            (Array.isArray(meta.primary_guest_records) ? meta.primary_guest_records : null);
-
-          if (Array.isArray(legacyList) && legacyList.length > 0) {
-            await saveGuestsToCloud(cust, legacyList);
-            return legacyList;
-          }
-        }
-      }
-    } catch (metaErr) {
-      console.warn('Could not read user_metadata:', metaErr);
-    }
-
-    // 2. Fallback baca dari tabel public.guests (terfilter ketat berdasarkan customer_id)
+    // 1. Baca utama dari tabel public.guests (terfilter ketat berdasarkan customer_id)
     try {
       const { data: dbGuests, error: dbErr } = await supabase
         .from('guests')
@@ -526,6 +470,43 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
     } catch {
       // Abaikan jika tabel belum ada
     }
+
+    // 2. Fallback migrasi legacy dari user_metadata jika tabel public.guests masih kosong
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (user && user.user_metadata) {
+        const meta = user.user_metadata;
+        const guestRecordsV3 = meta.guest_records_v3;
+
+        if (
+          guestRecordsV3 &&
+          typeof guestRecordsV3 === 'object' &&
+          Object.prototype.hasOwnProperty.call(guestRecordsV3, custId)
+        ) {
+          const list = guestRecordsV3[custId];
+          if (Array.isArray(list) && list.length > 0) {
+            if (!isAlfredoYanaCustomer(cust) && isLeakedAlfredoGuestList(list, meta)) {
+              localStorage.removeItem(getGuestStorageKey(cust));
+              return [];
+            }
+            const migrated = list.map((g: InvitedGuest) => {
+              const ext = sharedMeta[g.name?.trim().toLowerCase()] || (g.code ? sharedMeta[g.code] : undefined);
+              return {
+                ...g,
+                category: g.category || ext?.category || 'Reguler',
+                group_name: g.group_name ?? ext?.group_name ?? '',
+                table_id: g.table_id ?? ext?.table_id ?? '',
+              };
+            });
+            await saveGuestsToCloud(cust, migrated);
+            return migrated;
+          }
+        }
+      }
+    } catch (metaErr) {
+      console.warn('Could not read user_metadata:', metaErr);
+    }
   } catch (e) {
     console.warn('Error loading guests from cloud:', e);
   }
@@ -539,50 +520,8 @@ export const saveGuestsToCloud = async (
 ): Promise<boolean> => {
   try {
     const supabase = getSupabase();
-    const custId = getCustomerStorageId(cust);
 
-    // 1. Simpan ke Supabase Auth user_metadata (kompak agar muat banyak tamu tanpa menembus batas header 8KB)
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!userError && user) {
-        const existingMeta = user.user_metadata || {};
-        const existingRecordsV3 =
-          existingMeta.guest_records_v3 && typeof existingMeta.guest_records_v3 === 'object'
-            ? { ...existingMeta.guest_records_v3 }
-            : {};
-
-        const compactList = guestList.map((g) => ({
-          id: g.id,
-          name: g.name,
-          phone: g.phone || '',
-          max_guests: g.max_guests && g.max_guests > 0 ? g.max_guests : 2,
-          code: g.code,
-          category: g.category || 'Reguler',
-          group_name: g.group_name || '',
-          table_id: g.table_id || '',
-        }));
-        const listJson = JSON.stringify(compactList);
-        if (listJson.length <= 5500) {
-          existingRecordsV3[custId] = compactList;
-        } else {
-          delete existingRecordsV3[custId];
-        }
-
-        await supabase.auth.updateUser({
-          data: {
-            ...existingMeta,
-            guest_records_v3: existingRecordsV3,
-            primary_guest_records: null,
-            guest_records: null,
-            last_guest_sync: new Date().toISOString(),
-          },
-        });
-      }
-    } catch (authErr) {
-      console.warn('Could not update user_metadata:', authErr);
-    }
-
-    // 2. Jika tabel public.guests ada, sinkronkan juga ke tabel database khusus customer_id ini
+    // Simpan ke tabel database public.guests khusus customer_id ini (tidak lagi menimbun di JWT user_metadata)
     // PENTING: Baca dan pertahankan opened_at yang sudah ada di database agar status "Sudah Dibuka" tidak pernah hilang!
     try {
       const { data: existingDbGuests } = await supabase

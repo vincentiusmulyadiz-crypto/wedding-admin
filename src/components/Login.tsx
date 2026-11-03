@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { getSupabase } from '../lib/supabase';
+import { getSupabase, setActiveSession } from '../lib/supabase';
 import { translateAuthError } from '../lib/format';
 import logo from '../assets/logo.png';
 import { Lock, Mail, Loader2 } from 'lucide-react';
@@ -34,6 +34,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
       }
 
       if (data.session) {
+        setActiveSession(data.session);
         onSuccess(data.session);
       }
     } catch (err: unknown) {
