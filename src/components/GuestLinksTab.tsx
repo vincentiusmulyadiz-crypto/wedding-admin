@@ -771,7 +771,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Quick Inline Add in Step 1
   const [quickName, setQuickName] = useState<string>('');
   const [quickPhone, setQuickPhone] = useState<string>('');
-  const [quickMaxGuests, setQuickMaxGuests] = useState<number>(2);
+  const [quickMaxGuests, setQuickMaxGuests] = useState<number | ''>(2);
   const [quickIsCustomPax, setQuickIsCustomPax] = useState<boolean>(false);
   const [quickCategory, setQuickCategory] = useState<GuestCategory>('Reguler');
   const [quickTableId, setQuickTableId] = useState<string>('');
@@ -807,7 +807,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
-  const [inputMaxGuests, setInputMaxGuests] = useState<number>(2);
+  const [inputMaxGuests, setInputMaxGuests] = useState<number | ''>(2);
   const [inputIsCustomPax, setInputIsCustomPax] = useState<boolean>(false);
   const [inputCategory, setInputCategory] = useState<GuestCategory>('Reguler');
   const [inputGroup, setInputGroup] = useState<string>('');
@@ -1264,16 +1264,17 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const trimmed = quickName.trim();
     if (!trimmed) return;
 
+    const finalQuickPax = typeof quickMaxGuests === 'number' && quickMaxGuests > 0 ? quickMaxGuests : 2;
     const newGuest: InvitedGuest = {
       id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: trimmed,
       phone: quickPhone.trim(),
-      max_guests: quickMaxGuests,
+      max_guests: finalQuickPax,
       category: quickCategory,
       group_name: hasQrCheckin && quickGroup.trim() ? quickGroup.trim() : undefined,
       table_id: quickTableId || undefined,
       event_filter: activeEventFilter ? quickEventFilter : 'all',
-      code: encodeGuestCode(trimmed, quickMaxGuests),
+      code: encodeGuestCode(trimmed, finalQuickPax),
     };
 
     const nextList = [newGuest, ...guests];
@@ -1286,7 +1287,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setQuickGroup('');
     setQuickTableId('');
     setQuickEventFilter('all');
-    showToast(`Tamu "${trimmed}" (${quickCategory} • Jatah: ${quickMaxGuests} Tamu) berhasil ditambahkan!`, 'success');
+    showToast(`Tamu "${trimmed}" (${quickCategory} • Jatah: ${finalQuickPax} Tamu) berhasil ditambahkan!`, 'success');
   };
 
   // Quick Change Guest Category, Table, or Event inline
@@ -1332,6 +1333,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     }
 
     let nextList: InvitedGuest[];
+    const finalInputPax = typeof inputMaxGuests === 'number' && inputMaxGuests > 0 ? inputMaxGuests : 2;
     if (editingGuest) {
       nextList = guests.map((g) =>
         g.id === editingGuest.id
@@ -1339,12 +1341,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               ...g,
               name: trimmedName,
               phone: inputPhone.trim(),
-              max_guests: inputMaxGuests,
+              max_guests: finalInputPax,
               category: inputCategory,
               group_name: inputGroup.trim() || undefined,
               table_id: inputTableId || undefined,
               event_filter: activeEventFilter ? inputEventFilter : 'all',
-              code: encodeGuestCode(trimmedName, inputMaxGuests),
+              code: encodeGuestCode(trimmedName, finalInputPax),
             }
           : g
       );
@@ -1354,12 +1356,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         name: trimmedName,
         phone: inputPhone.trim(),
-        max_guests: inputMaxGuests,
+        max_guests: finalInputPax,
         category: inputCategory,
         group_name: inputGroup.trim() || undefined,
         table_id: inputTableId || undefined,
         event_filter: activeEventFilter ? inputEventFilter : 'all',
-        code: encodeGuestCode(trimmedName, inputMaxGuests),
+        code: encodeGuestCode(trimmedName, finalInputPax),
       };
       nextList = [newGuest, ...guests];
       showToast(`Tamu "${trimmedName}" berhasil ditambahkan`, 'success');
@@ -1599,7 +1601,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 onChange={(e) => {
                   if (e.target.value === 'custom') {
                     setQuickIsCustomPax(true);
-                    if (quickMaxGuests <= 10) setQuickMaxGuests(15);
+                    if (typeof quickMaxGuests === 'number' && quickMaxGuests <= 10) setQuickMaxGuests(15);
                   } else {
                     setQuickIsCustomPax(false);
                     setQuickMaxGuests(parseInt(e.target.value, 10) || 2);
@@ -1626,10 +1628,25 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                   min="1"
                   max="500"
                   value={quickMaxGuests}
-                  onChange={(e) => setQuickMaxGuests(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      setQuickMaxGuests('');
+                    } else {
+                      const num = parseInt(val, 10);
+                      if (!isNaN(num)) {
+                        setQuickMaxGuests(Math.min(500, Math.max(0, num)));
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (quickMaxGuests === '' || quickMaxGuests < 1) {
+                      setQuickMaxGuests(1);
+                    }
+                  }}
                   placeholder="Pax"
                   className="w-16 px-2 py-2 rounded-xl bg-[#fffdfa] border border-[#0f3b47] text-xs text-[#0e2c34] font-bold text-center focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                  title="Ketik jumlah kuota pax bebas"
+                  title="Ketik jumlah kuota pax bebas (1 s/d 500)"
                 />
               )}
             </div>
@@ -2231,7 +2248,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         onChange={(e) => {
                           if (e.target.value === 'custom') {
                             setInputIsCustomPax(true);
-                            if (inputMaxGuests <= 10) setInputMaxGuests(15);
+                            if (typeof inputMaxGuests === 'number' && inputMaxGuests <= 10) setInputMaxGuests(15);
                           } else {
                             setInputIsCustomPax(false);
                             setInputMaxGuests(parseInt(e.target.value, 10) || 2);
@@ -2257,7 +2274,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                           min="1"
                           max="500"
                           value={inputMaxGuests}
-                          onChange={(e) => setInputMaxGuests(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '') {
+                              setInputMaxGuests('');
+                            } else {
+                              const num = parseInt(val, 10);
+                              if (!isNaN(num)) {
+                                setInputMaxGuests(Math.min(500, Math.max(0, num)));
+                              }
+                            }
+                          }}
+                          onBlur={() => {
+                            if (inputMaxGuests === '' || inputMaxGuests < 1) {
+                              setInputMaxGuests(1);
+                            }
+                          }}
                           placeholder="Ketik jumlah tamu (misal: 15)"
                           className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                         />
@@ -2308,7 +2340,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                     onChange={(e) => {
                       if (e.target.value === 'custom') {
                         setInputIsCustomPax(true);
-                        if (inputMaxGuests <= 10) setInputMaxGuests(15);
+                        if (typeof inputMaxGuests === 'number' && inputMaxGuests <= 10) setInputMaxGuests(15);
                       } else {
                         setInputIsCustomPax(false);
                         setInputMaxGuests(parseInt(e.target.value, 10) || 2);
@@ -2334,7 +2366,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                       min="1"
                       max="500"
                       value={inputMaxGuests}
-                      onChange={(e) => setInputMaxGuests(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setInputMaxGuests('');
+                        } else {
+                          const num = parseInt(val, 10);
+                          if (!isNaN(num)) {
+                            setInputMaxGuests(Math.min(500, Math.max(0, num)));
+                          }
+                        }
+                      }}
+                      onBlur={() => {
+                        if (inputMaxGuests === '' || inputMaxGuests < 1) {
+                          setInputMaxGuests(1);
+                        }
+                      }}
                       placeholder="Ketik jumlah tamu (misal: 15)"
                       className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                     />
