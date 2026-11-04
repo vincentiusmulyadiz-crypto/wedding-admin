@@ -32,21 +32,21 @@ export function base64UrlDecode(str: string): Uint8Array {
 
 export function encodeGuestCode(name: string, maxGuests?: number): string {
   if (!name || !name.trim()) return '';
-  // Selalu enkripsi nama murni saja agar tidak pernah memunculkan angka/::: di layar sapaan template
   const cleanName = name.trim();
   const quota =
-    typeof maxGuests === 'number' && !isNaN(maxGuests) && maxGuests >= 1 && maxGuests <= 10
+    typeof maxGuests === 'number' && !isNaN(maxGuests) && maxGuests >= 1 && maxGuests <= 500
       ? Math.floor(maxGuests)
       : 2;
 
   const h0 = Math.floor(Math.random() * 15) + 1; // 1..15
   const h1 = Math.floor(Math.random() * 15) + 1; // 1..15
   const h2 = (h0 ^ h1 ^ 0xa) & 0xf;
-  const h3 = (h0 + h1 + quota) & 0xf;
+  const h3 = (h0 + h1 + (quota <= 10 ? quota : 0)) & 0xf;
 
   const salt = h0.toString(16) + h1.toString(16) + h2.toString(16) + h3.toString(16);
   const saltNum = parseInt(salt, 16);
-  const bytes = new TextEncoder().encode(cleanName);
+  const payloadText = quota > 10 ? `${cleanName}:::${quota}` : cleanName;
+  const bytes = new TextEncoder().encode(payloadText);
   const scrambled = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) {
     const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
@@ -102,7 +102,7 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
     const raw = new TextDecoder().decode(bytes).trim();
     if (raw.includes(':::')) {
       const q = parseInt(raw.split(':::')[1], 10);
-      if (!isNaN(q) && q >= 1 && q <= 10) return q;
+      if (!isNaN(q) && q >= 1 && q <= 500) return q;
     }
 
     const h0 = parseInt(salt[0], 16);

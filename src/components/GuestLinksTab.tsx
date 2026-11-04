@@ -772,6 +772,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickName, setQuickName] = useState<string>('');
   const [quickPhone, setQuickPhone] = useState<string>('');
   const [quickMaxGuests, setQuickMaxGuests] = useState<number>(2);
+  const [quickIsCustomPax, setQuickIsCustomPax] = useState<boolean>(false);
   const [quickCategory, setQuickCategory] = useState<GuestCategory>('Reguler');
   const [quickTableId, setQuickTableId] = useState<string>('');
   const [quickGroup, setQuickGroup] = useState<string>('');
@@ -807,6 +808,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
   const [inputMaxGuests, setInputMaxGuests] = useState<number>(2);
+  const [inputIsCustomPax, setInputIsCustomPax] = useState<boolean>(false);
   const [inputCategory, setInputCategory] = useState<GuestCategory>('Reguler');
   const [inputGroup, setInputGroup] = useState<string>('');
   const [inputTableId, setInputTableId] = useState<string>('');
@@ -1279,6 +1281,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setQuickName('');
     setQuickPhone('');
     setQuickMaxGuests(2);
+    setQuickIsCustomPax(false);
     setQuickCategory('Reguler');
     setQuickGroup('');
     setQuickTableId('');
@@ -1309,7 +1312,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setEditingGuest(guest);
     setInputName(guest.name);
     setInputPhone(guest.phone);
-    setInputMaxGuests(guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2);
+    const guestPax = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
+    setInputMaxGuests(guestPax);
+    setInputIsCustomPax(guestPax > 10);
     setInputCategory(guest.category || 'Reguler');
     setInputGroup(guest.group_name || '');
     setInputTableId(guest.table_id || '');
@@ -1409,7 +1414,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       const parseQuota = (val?: string) => {
         if (!val) return 2;
         const num = parseInt(val.trim(), 10);
-        return isNaN(num) ? 2 : Math.min(Math.max(num, 1), 6);
+        return isNaN(num) ? 2 : Math.min(Math.max(num, 1), 500);
       };
 
       if (line.includes('\t')) {
@@ -1587,20 +1592,47 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           )}
 
-          <div className={hasGuestCategory || hasQrCheckin ? "sm:col-span-1" : "sm:col-span-2"}>
-            <select
-              value={quickMaxGuests}
-              onChange={(e) => setQuickMaxGuests(parseInt(e.target.value, 10) || 2)}
-              className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-              title="Jatah Maksimal Tamu pada RSVP (default: 2)"
-            >
-              <option value={1}>1 Tamu</option>
-              <option value={2}>2 Tamu (Default)</option>
-              <option value={3}>3 Tamu</option>
-              <option value={4}>4 Tamu</option>
-              <option value={5}>5 Tamu</option>
-              <option value={6}>6 Tamu</option>
-            </select>
+          <div className={hasGuestCategory || hasQrCheckin ? (quickIsCustomPax ? "sm:col-span-2" : "sm:col-span-1") : (quickIsCustomPax ? "sm:col-span-3" : "sm:col-span-2")}>
+            <div className="flex items-center gap-1">
+              <select
+                value={quickIsCustomPax ? 'custom' : quickMaxGuests}
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    setQuickIsCustomPax(true);
+                    if (quickMaxGuests <= 10) setQuickMaxGuests(15);
+                  } else {
+                    setQuickIsCustomPax(false);
+                    setQuickMaxGuests(parseInt(e.target.value, 10) || 2);
+                  }
+                }}
+                className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                title="Jatah Maksimal Tamu pada RSVP (1 s/d 10 atau Ketik Sendiri)"
+              >
+                <option value={1}>1 Tamu</option>
+                <option value={2}>2 Tamu (Default)</option>
+                <option value={3}>3 Tamu</option>
+                <option value={4}>4 Tamu</option>
+                <option value={5}>5 Tamu</option>
+                <option value={6}>6 Tamu</option>
+                <option value={7}>7 Tamu</option>
+                <option value={8}>8 Tamu</option>
+                <option value={9}>9 Tamu</option>
+                <option value={10}>10 Tamu</option>
+                <option value="custom">Lainnya...</option>
+              </select>
+              {quickIsCustomPax && (
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={quickMaxGuests}
+                  onChange={(e) => setQuickMaxGuests(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+                  placeholder="Pax"
+                  className="w-16 px-2 py-2 rounded-xl bg-[#fffdfa] border border-[#0f3b47] text-xs text-[#0e2c34] font-bold text-center focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                  title="Ketik jumlah kuota pax bebas"
+                />
+              )}
+            </div>
           </div>
 
           {activeEventFilter && (
@@ -2195,8 +2227,16 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         Jatah Tamu Maks.
                       </label>
                       <select
-                        value={inputMaxGuests}
-                        onChange={(e) => setInputMaxGuests(parseInt(e.target.value, 10) || 2)}
+                        value={inputIsCustomPax ? 'custom' : inputMaxGuests}
+                        onChange={(e) => {
+                          if (e.target.value === 'custom') {
+                            setInputIsCustomPax(true);
+                            if (inputMaxGuests <= 10) setInputMaxGuests(15);
+                          } else {
+                            setInputIsCustomPax(false);
+                            setInputMaxGuests(parseInt(e.target.value, 10) || 2);
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                       >
                         <option value={1}>1 Orang</option>
@@ -2205,7 +2245,23 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         <option value={4}>4 Orang</option>
                         <option value={5}>5 Orang</option>
                         <option value={6}>6 Orang</option>
+                        <option value={7}>7 Orang</option>
+                        <option value={8}>8 Orang</option>
+                        <option value={9}>9 Orang</option>
+                        <option value={10}>10 Orang</option>
+                        <option value="custom">Lainnya (Ketik Sendiri...)</option>
                       </select>
+                      {inputIsCustomPax && (
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={inputMaxGuests}
+                          onChange={(e) => setInputMaxGuests(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+                          placeholder="Ketik jumlah tamu (misal: 15)"
+                          className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -2248,8 +2304,16 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                     Jatah Tamu Maks.
                   </label>
                   <select
-                    value={inputMaxGuests}
-                    onChange={(e) => setInputMaxGuests(parseInt(e.target.value, 10) || 2)}
+                    value={inputIsCustomPax ? 'custom' : inputMaxGuests}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') {
+                        setInputIsCustomPax(true);
+                        if (inputMaxGuests <= 10) setInputMaxGuests(15);
+                      } else {
+                        setInputIsCustomPax(false);
+                        setInputMaxGuests(parseInt(e.target.value, 10) || 2);
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                   >
                     <option value={1}>1 Orang</option>
@@ -2258,7 +2322,23 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                     <option value={4}>4 Orang</option>
                     <option value={5}>5 Orang</option>
                     <option value={6}>6 Orang</option>
+                    <option value={7}>7 Orang</option>
+                    <option value={8}>8 Orang</option>
+                    <option value={9}>9 Orang</option>
+                    <option value={10}>10 Orang</option>
+                    <option value="custom">Lainnya (Ketik Sendiri...)</option>
                   </select>
+                  {inputIsCustomPax && (
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={inputMaxGuests}
+                      onChange={(e) => setInputMaxGuests(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
+                      placeholder="Ketik jumlah tamu (misal: 15)"
+                      className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                    />
+                  )}
                 </div>
               )}
 
