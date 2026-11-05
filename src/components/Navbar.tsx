@@ -5,9 +5,9 @@ import {
   LogOut,
   ChevronDown,
   LayoutDashboard,
-  Users,
-  MessageCircle,
-  Shield,
+  UserCheck,
+  Link2,
+  ShieldCheck,
   Settings,
   Check,
   BookOpen,
@@ -51,25 +51,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   const showTablesTab = hasTableManagement !== undefined ? hasTableManagement : hasQrCheckin;
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
-    { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'guests', label: 'Daftar Tamu', icon: <Users className="w-4 h-4" /> },
-    { id: 'links', label: 'Tautan Tamu', icon: <MessageCircle className="w-4 h-4 text-emerald-600" /> },
+    { id: 'overview', label: 'Ringkasan', icon: <LayoutDashboard className="w-4 h-4 shrink-0" /> },
+    { id: 'guests', label: 'Daftar Tamu', icon: <UserCheck className="w-4 h-4 shrink-0" /> },
+    { id: 'links', label: 'Tautan Tamu', icon: <Link2 className="w-4 h-4 shrink-0" /> },
     ...(showTablesTab
       ? [
           {
             id: 'tables' as TabType,
             label: 'Manajemen Meja',
-            icon: <Armchair className="w-4 h-4 text-amber-500" />,
+            icon: <Armchair className="w-4 h-4 shrink-0" />,
           },
         ]
       : []),
-    { id: 'tutorial', label: 'Tutorial', icon: <BookOpen className="w-4 h-4 text-teal-700" /> },
+    { id: 'tutorial', label: 'Tutorial', icon: <BookOpen className="w-4 h-4 shrink-0" /> },
     ...(isAdmin
       ? [
           {
             id: 'customers' as TabType,
             label: 'Kelola Undangan',
-            icon: <Shield className="w-4 h-4 text-amber-600" />,
+            icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
             adminOnly: true,
           },
         ]
@@ -218,28 +218,39 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* 2. Mobile Bottom Navigation Bar (Tab Bawah di Mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0E435A]/95 backdrop-blur-md border-t border-[#154B64] shadow-lg flex items-center justify-around py-1.5 px-2 safe-area-pb text-[#FAF6EC]">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onSelectTab(tab.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition ${
-                isActive
-                  ? 'text-[#DFD0B8] font-bold bg-[#16516b]'
-                  : 'text-[#9cc4d3] hover:text-[#FAF6EC]'
-              }`}
-            >
-              <div className="p-0.5">{tab.icon}</div>
-              <span className="text-[10px] mt-0.5 tracking-tight truncate max-w-[75px]">
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* 2. Mobile Floating Pill Navigation Bar (Gaya PillNav React Bits - Expanded Active Accordion) */}
+      <div className="md:hidden fixed bottom-4 inset-x-0 z-40 flex justify-center px-3 pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
+        <nav
+          aria-label="Navigasi Menu Mobile"
+          className="pointer-events-auto max-w-[calc(100vw-24px)] inline-flex items-center gap-1 p-1.5 rounded-full bg-[#0E435A]/95 backdrop-blur-md border border-[#1d6382]/60 shadow-[0_16px_36px_-10px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.3)] ring-1 ring-white/10"
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onSelectTab(tab.id)}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={tab.label}
+                title={tab.label}
+                className={`relative flex items-center justify-center gap-1.5 rounded-full text-xs font-bold transition-all duration-300 ease-out select-none cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#DFD0B8] ${
+                  isActive
+                    ? 'bg-gradient-to-b from-[#FAF6EC] to-[#DFD0B8] text-[#0E435A] px-3.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_12px_-2px_rgba(0,0,0,0.35)]'
+                    : 'text-[#FAF6EC]/70 hover:text-[#FAF6EC] hover:bg-white/10 px-2.5 py-2'
+                }`}
+              >
+                <div className="shrink-0">{tab.icon}</div>
+                {isActive && (
+                  <span className="whitespace-nowrap tracking-tight animate-in fade-in duration-200">
+                    {tab.label}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
     </>
   );
 };
