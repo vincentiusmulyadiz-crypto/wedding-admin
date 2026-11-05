@@ -219,7 +219,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       {/* 2. Mobile Floating Pill Navigation Bar (Gaya PillNav React Bits - Expanded Active Accordion) */}
-      <div className="md:hidden fixed bottom-4 inset-x-0 z-40 flex justify-center px-3 pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
+      <div className="md:hidden fixed bottom-4 inset-x-0 z-50 flex justify-center px-3 pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
         <nav
           aria-label="Navigasi Menu Mobile"
           className="pointer-events-auto max-w-[calc(100vw-24px)] inline-flex items-center gap-1 p-1.5 rounded-full bg-[#0E435A]/95 backdrop-blur-md border border-[#1d6382]/60 shadow-[0_16px_36px_-10px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.3)] ring-1 ring-white/10"
