@@ -218,11 +218,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* 2. Mobile Floating Pill Navigation Bar (Gaya PillNav React Bits - Expanded Active Accordion) */}
+      {/* 2. Mobile Floating Pill Navigation Bar (Gaya PillNav React Bits - Blurry Glass tanpa Shadow) */}
       <div className="md:hidden fixed bottom-4 inset-x-0 z-50 flex justify-center px-3 pointer-events-none pb-[env(safe-area-inset-bottom,0px)]">
         <nav
           aria-label="Navigasi Menu Mobile"
-          className="pointer-events-auto max-w-[calc(100vw-24px)] inline-flex items-center gap-1 p-1.5 rounded-full bg-[#0E435A]/95 backdrop-blur-md border border-[#1d6382]/60 shadow-[0_16px_36px_-10px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.3)] ring-1 ring-white/10"
+          className="pointer-events-auto max-w-[calc(100vw-24px)] inline-flex items-center gap-1 p-1.5 rounded-full bg-[#0E435A]/75 backdrop-blur-xl border border-white/15 ring-1 ring-[#1d6382]/40"
+          style={{ WebkitBackdropFilter: 'blur(20px) saturate(180%)' }}
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -236,8 +237,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title={tab.label}
                 className={`relative flex items-center justify-center gap-1.5 rounded-full text-xs font-bold transition-all duration-300 ease-out select-none cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#DFD0B8] ${
                   isActive
-                    ? 'bg-gradient-to-b from-[#FAF6EC] to-[#DFD0B8] text-[#0E435A] px-3.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_12px_-2px_rgba(0,0,0,0.35)]'
-                    : 'text-[#FAF6EC]/70 hover:text-[#FAF6EC] hover:bg-white/10 px-2.5 py-2'
+                    ? 'bg-gradient-to-b from-[#FAF6EC] to-[#DFD0B8] text-[#0E435A] px-3.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]'
+                    : 'text-[#FAF6EC]/75 hover:text-[#FAF6EC] hover:bg-white/10 px-2.5 py-2'
                 }`}
               >
                 <div className="shrink-0">{tab.icon}</div>
