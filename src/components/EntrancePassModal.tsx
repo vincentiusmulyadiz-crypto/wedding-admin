@@ -112,32 +112,35 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const handleDownloadCard = async () => {
     setIsDownloading(true);
     try {
+      const hasTablePill = Boolean(
+        useTableManagement &&
+          assignedTableText &&
+          !assignedTableText.toLowerCase().includes('bebas') &&
+          !assignedTableText.toLowerCase().includes('resepsi')
+      );
+
       const canvas = document.createElement('canvas');
-      canvas.width = 720;
-      canvas.height = 1080;
+      canvas.width = 600;
+      canvas.height = hasTablePill ? 860 : 812;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // 1. White rounded card background
+      // 1. Tight full-bleed rounded card background
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.roundRect(30, 30, canvas.width - 60, canvas.height - 60, 28);
+      ctx.roundRect(0, 0, canvas.width, canvas.height, 28);
       ctx.fill();
 
-      ctx.strokeStyle = '#E4E4E7';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // 2. Draw Top Luxury Header with Cover Photo
-      const bannerHeight = 160;
+      // 2. Draw Top Luxury Header with Cover Photo (156px height)
+      const bannerHeight = 156;
       ctx.save();
       ctx.beginPath();
-      ctx.roundRect(30, 30, canvas.width - 60, bannerHeight, [28, 28, 0, 0]);
+      ctx.roundRect(0, 0, canvas.width, bannerHeight, [28, 28, 0, 0]);
       ctx.clip();
 
       // Base background
       ctx.fillStyle = '#1c1917';
-      ctx.fillRect(30, 30, canvas.width - 60, bannerHeight);
+      ctx.fillRect(0, 0, canvas.width, bannerHeight);
 
       // Load & Draw Cover Photo Image (with fallback)
       const coverImg = new Image();
@@ -146,19 +149,19 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         coverImg.onload = () => {
           try {
             const imgAspect = coverImg.width / coverImg.height;
-            const bannerWidth = canvas.width - 60;
+            const bannerWidth = canvas.width;
             const bannerAspect = bannerWidth / bannerHeight;
             let drawWidth = bannerWidth;
             let drawHeight = bannerHeight;
-            let drawX = 30;
-            let drawY = 30;
+            let drawX = 0;
+            let drawY = 0;
 
             if (imgAspect > bannerAspect) {
               drawWidth = bannerHeight * imgAspect;
-              drawX = 30 - (drawWidth - bannerWidth) / 2;
+              drawX = -(drawWidth - bannerWidth) / 2;
             } else {
               drawHeight = bannerWidth / imgAspect;
-              drawY = 30 - (drawHeight - bannerHeight) / 2;
+              drawY = -(drawHeight - bannerHeight) / 2;
             }
             ctx.drawImage(coverImg, drawX, drawY, drawWidth, drawHeight);
           } catch {
@@ -177,48 +180,42 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       });
 
       // Dark gradient overlay matching the web UI
-      const headerGrad = ctx.createLinearGradient(0, 30, 0, 30 + bannerHeight);
-      headerGrad.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
-      headerGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.65)');
-      headerGrad.addColorStop(1, 'rgba(0, 0, 0, 0.88)');
+      const headerGrad = ctx.createLinearGradient(0, 0, 0, bannerHeight);
+      headerGrad.addColorStop(0, 'rgba(0, 0, 0, 0.30)');
+      headerGrad.addColorStop(0.55, 'rgba(0, 0, 0, 0.45)');
+      headerGrad.addColorStop(1, 'rgba(0, 0, 0, 0.72)');
       ctx.fillStyle = headerGrad;
-      ctx.fillRect(30, 30, canvas.width - 60, bannerHeight);
+      ctx.fillRect(0, 0, canvas.width, bannerHeight);
 
       // Gold Badge Pill on Header
-      ctx.fillStyle = '#DFD0B8';
+      ctx.font = 'bold 12px "Plus Jakarta Sans", Arial, Helvetica, sans-serif';
+      const badgeMetrics = ctx.measureText(categoryBadge);
+      const badgeWidth = Math.max(204, badgeMetrics.width + 44);
+      ctx.fillStyle = '#E4D8C4';
       ctx.beginPath();
-      ctx.roundRect(canvas.width / 2 - 100, 62, 200, 34, 17);
+      ctx.roundRect((canvas.width - badgeWidth) / 2, 46, badgeWidth, 34, 17);
       ctx.fill();
 
-      ctx.fillStyle = '#0E435A';
-      ctx.font = 'bold 12px Arial, Helvetica, sans-serif';
+      ctx.fillStyle = '#18242B';
       ctx.textAlign = 'center';
-      ctx.fillText(categoryBadge, canvas.width / 2, 84);
+      ctx.fillText(categoryBadge, canvas.width / 2, 68);
 
       // Subtitle "JOYEVER DIGITAL ACCESS PASS"
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.font = 'bold 10px Arial, Helvetica, sans-serif';
-      ctx.fillText('JOYEVER DIGITAL ACCESS PASS', canvas.width / 2, 122);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.font = 'bold 11px "Plus Jakarta Sans", Arial, Helvetica, sans-serif';
+      ctx.fillText('JOYEVER DIGITAL ACCESS PASS', canvas.width / 2, 106);
       ctx.restore();
 
       // 3. Card Body Header (Couple Names)
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#18181B';
-      ctx.font = 'bold 28px Arial, Helvetica, sans-serif';
-      ctx.fillText(coupleTitle, canvas.width / 2, 248);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 31px "Plus Jakarta Sans", Georgia, serif';
+      ctx.fillText(coupleTitle, canvas.width / 2, 232);
 
-      // Event Date Only (Location detail removed)
-      ctx.fillStyle = '#52525B';
-      ctx.font = '14px Arial, Helvetica, sans-serif';
-      ctx.fillText(eventDateOnly, canvas.width / 2, 282);
-
-      // Thin Divider
-      ctx.strokeStyle = '#E4E4E7';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(70, 318);
-      ctx.lineTo(canvas.width - 70, 318);
-      ctx.stroke();
+      // Event Date Only
+      ctx.fillStyle = '#71717A';
+      ctx.font = '500 17px "Plus Jakarta Sans", Arial, Helvetica, sans-serif';
+      ctx.fillText(eventDateOnly, canvas.width / 2, 270);
 
       // 4. Draw QR Code
       const qrImg = new Image();
@@ -226,15 +223,20 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
 
       await new Promise<void>((resolve) => {
         qrImg.onload = () => {
-          const qrSize = 300;
+          const qrBoxSize = 310;
+          const qrBoxX = (canvas.width - qrBoxSize) / 2;
+          const qrBoxY = 304;
+          const qrSize = 270;
           const qrX = (canvas.width - qrSize) / 2;
-          const qrY = 345;
+          const qrY = qrBoxY + 20;
 
-          // Box border
-          ctx.strokeStyle = '#18181B';
-          ctx.lineWidth = 2;
+          ctx.fillStyle = '#FFFFFF';
           ctx.beginPath();
-          ctx.roundRect(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 20);
+          ctx.roundRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 22);
+          ctx.fill();
+
+          ctx.strokeStyle = '#18181B';
+          ctx.lineWidth = 2.5;
           ctx.stroke();
 
           ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
@@ -245,42 +247,37 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       });
 
       // Bottom Divider
-      ctx.strokeStyle = '#E4E4E7';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#F1F1F4';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(70, 688);
-      ctx.lineTo(canvas.width - 70, 688);
+      ctx.moveTo(46, 650);
+      ctx.lineTo(canvas.width - 46, 650);
       ctx.stroke();
 
       // 5. Guest Salutation & Details
-      ctx.fillStyle = '#18181B';
-      ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 730);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 24px "Plus Jakarta Sans", Georgia, serif';
+      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 696);
 
       ctx.fillStyle = '#52525B';
-      ctx.font = '15px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Valid for (${maxGuests}) person(s)`, canvas.width / 2, 765);
+      ctx.font = '500 17px "Plus Jakarta Sans", Arial, Helvetica, sans-serif';
+      ctx.fillText(`Valid for (${maxGuests}) person(s)`, canvas.width / 2, 735);
 
-      ctx.fillStyle = '#71717A';
-      ctx.font = 'bold 14px "Courier New", monospace';
-      ctx.fillText(passId, canvas.width / 2, 798);
+      ctx.fillStyle = '#A1A1AA';
+      ctx.font = 'bold 14px "JetBrains Mono", "Courier New", monospace';
+      ctx.fillText(passId, canvas.width / 2, 768);
 
       // Table Assignment (if any and table management is enabled)
-      if (
-        useTableManagement &&
-        assignedTableText &&
-        !assignedTableText.toLowerCase().includes('bebas') &&
-        !assignedTableText.toLowerCase().includes('resepsi')
-      ) {
+      if (hasTablePill && assignedTableText) {
         const seatPart = assignedSeatText ? ` · Kursi ${assignedSeatText}` : '';
         const tablePillText = `Meja: ${assignedTableText}${seatPart}`;
 
-        ctx.font = 'bold 14px Arial, Helvetica, sans-serif';
+        ctx.font = 'bold 14px "Plus Jakarta Sans", Arial, Helvetica, sans-serif';
         const textMetrics = ctx.measureText(tablePillText);
-        const pillWidth = Math.max(textMetrics.width + 36, 160);
+        const pillWidth = Math.max(textMetrics.width + 36, 170);
         const pillHeight = 32;
         const pillX = (canvas.width - pillWidth) / 2;
-        const pillY = 824;
+        const pillY = 790;
 
         ctx.fillStyle = '#faf5ec';
         ctx.beginPath();
@@ -296,14 +293,12 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         ctx.fillText(tablePillText, canvas.width / 2, pillY + 21);
       }
 
-      // Footer note
-      ctx.fillStyle = '#A1A1AA';
-      ctx.font = '12px Arial, Helvetica, sans-serif';
-      ctx.fillText(
-        'Please present this card at the reception table upon arrival.',
-        canvas.width / 2,
-        960
-      );
+      // Outer card subtle border
+      ctx.strokeStyle = '#E4E4E7';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 28);
+      ctx.stroke();
 
       const link = document.createElement('a');
       link.download = `Access-Pass-${cleanName.replace(/\s+/g, '-')}.png`;
