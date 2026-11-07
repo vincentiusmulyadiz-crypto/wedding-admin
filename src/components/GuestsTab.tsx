@@ -653,14 +653,13 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPrimaryStatusFilter('hadir');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 whitespace-nowrap shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'hadir'
                   ? 'bg-teal-700 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-teal-800'
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Hadir</span>
+              Hadir
             </button>
             <button
               type="button"
@@ -668,14 +667,13 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPrimaryStatusFilter('tidak_hadir');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 whitespace-nowrap shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'tidak_hadir'
                   ? 'bg-rose-700 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-rose-800'
               }`}
             >
-              <XCircle className="w-3.5 h-3.5" />
-              <span>Tidak Hadir</span>
+              Tidak Hadir
             </button>
             <button
               type="button"
@@ -683,14 +681,13 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 setPrimaryStatusFilter('belum_pasti');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 whitespace-nowrap shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 primaryStatusFilter === 'belum_pasti'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-[#52717b] hover:text-amber-800'
               }`}
             >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>Belum Pasti</span>
+              Belum Pasti
             </button>
           </div>
         </div>
