@@ -265,9 +265,21 @@ export function getWeddingEventDetails(
 
   // 1. Venue resolution
   let venue = settings?.venueName?.trim() || '';
+  if (!venue && typeof window !== 'undefined') {
+    try {
+      const raw =
+        (cust.id ? localStorage.getItem(`joyever_checkin_settings_${cust.id}`) : null) ||
+        (cust.slug ? localStorage.getItem(`joyever_checkin_settings_${cust.slug}`) : null);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.venueName?.trim()) venue = parsed.venueName.trim();
+      }
+    } catch {}
+  }
+
   if (!venue) {
     if (lowerSlug.includes('seno') || lowerCouple.includes('seno')) {
-      venue = 'The Heritage Hall at Plataran';
+      venue = 'Gohan Bloc';
     } else if (lowerSlug.includes('rima') || lowerCouple.includes('rima')) {
       venue = 'The Grand Ballroom Hall';
     } else if (lowerSlug.includes('aul') || lowerSlug.includes('farid') || lowerCouple.includes('farid')) {
@@ -281,6 +293,17 @@ export function getWeddingEventDetails(
 
   // 2. Date resolution
   let dateText = settings?.eventDateText?.trim() || '';
+  if (!dateText && typeof window !== 'undefined') {
+    try {
+      const raw =
+        (cust.id ? localStorage.getItem(`joyever_checkin_settings_${cust.id}`) : null) ||
+        (cust.slug ? localStorage.getItem(`joyever_checkin_settings_${cust.slug}`) : null);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.eventDateText?.trim()) dateText = parsed.eventDateText.trim();
+      }
+    } catch {}
+  }
   if (!dateText) {
     if (cust.event_date && /^\d{4}-\d{2}-\d{2}/.test(cust.event_date)) {
       const parsedDate = new Date(cust.event_date);
@@ -477,6 +500,21 @@ export async function loadSharedConfigFromCloud(cust: Customer): Promise<{
             try {
               if (cust.id) localStorage.setItem(`joyever_event_filter_enabled_${cust.id}`, String(eventFilterEnabled));
               if (cust.slug) localStorage.setItem(`joyever_event_filter_enabled_${cust.slug}`, String(eventFilterEnabled));
+            } catch {}
+          }
+          if (parsed && (parsed.venueName || parsed.eventDateText)) {
+            try {
+              const prevRaw =
+                (cust.id ? localStorage.getItem(`joyever_checkin_settings_${cust.id}`) : null) ||
+                (cust.slug ? localStorage.getItem(`joyever_checkin_settings_${cust.slug}`) : null);
+              const prev = prevRaw ? JSON.parse(prevRaw) : {};
+              const nextSettings = {
+                ...prev,
+                ...(parsed.venueName ? { venueName: parsed.venueName } : {}),
+                ...(parsed.eventDateText ? { eventDateText: parsed.eventDateText } : {}),
+              };
+              if (cust.id) localStorage.setItem(`joyever_checkin_settings_${cust.id}`, JSON.stringify(nextSettings));
+              if (cust.slug) localStorage.setItem(`joyever_checkin_settings_${cust.slug}`, JSON.stringify(nextSettings));
             } catch {}
           }
         } catch {
