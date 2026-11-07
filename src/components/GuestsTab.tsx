@@ -425,8 +425,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           <button
             type="button"
             onClick={fetchGuests}
-            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#3d5e68] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs"
-            title="Segarkan data"
+            className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#3d5e68] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs cursor-pointer"
+            title="Refresh data"
           >
             <RotateCw className="w-4 h-4" />
           </button>
@@ -600,8 +600,39 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
             />
           </form>
 
-          {/* Satu Filter Status Utama: Hadir / Tidak Hadir / Belum Pasti */}
-          <div className="inline-flex rounded-xl border border-[#ded4be] p-1 bg-[#faf6ee] text-xs overflow-x-auto max-w-full shrink-0">
+          {/* Filter Jenis Kehadiran Versi Mobile (Dropdown Menu) */}
+          <div className="sm:hidden w-full">
+            <select
+              value={eventFilter !== 'all' ? `event-${eventFilter}` : primaryStatusFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith('event-')) {
+                  setPrimaryStatusFilter('hadir');
+                  setEventFilter(val.replace('event-', '') as EventFilterType);
+                } else {
+                  setPrimaryStatusFilter(val as StatusFilterType);
+                  setEventFilter('all');
+                }
+                setPage(1);
+              }}
+              aria-label="Filter status dan jenis kehadiran"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs font-bold text-[#0e2c34] focus:outline-none focus:ring-2 focus:ring-[#0f3b47] cursor-pointer shadow-xs"
+            >
+              <option value="all">Semua Status Kehadiran</option>
+              <option value="hadir">Hadir (Semua Kategori)</option>
+              <option value="event-semuanya">-- Hadir: Semua Acara</option>
+              <option value="event-resepsi_saja">-- Hadir: Resepsi Saja</option>
+              <option value="event-akad_saja">-- Hadir: Akad Saja</option>
+              <option value="event-adat_saja">-- Hadir: Adat Saja</option>
+              <option value="event-resepsi_adat">-- Hadir: Resepsi & Adat</option>
+              <option value="event-resepsi_akad">-- Hadir: Resepsi & Akad</option>
+              <option value="tidak_hadir">Tidak Hadir</option>
+              <option value="belum_pasti">Belum Pasti</option>
+            </select>
+          </div>
+
+          {/* Filter Status Utama Versi Desktop (Button Group) */}
+          <div className="hidden sm:inline-flex rounded-xl border border-[#ded4be] p-1 bg-[#faf6ee] text-xs overflow-x-auto max-w-full shrink-0">
             <button
               type="button"
               onClick={() => {

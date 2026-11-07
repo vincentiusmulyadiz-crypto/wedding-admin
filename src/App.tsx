@@ -281,7 +281,7 @@ export function App() {
         .order('couple_names', { ascending: true });
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error('Batas waktu tunggu server habis. Silakan klik Segarkan.')),
+          () => reject(new Error('Batas waktu tunggu server habis. Silakan klik Refresh.')),
           12000
         )
       );
@@ -345,7 +345,7 @@ export function App() {
       }
 
       const friendlyMsg = rawMsg.includes('Load failed')
-        ? 'Koneksi jaringan terputus atau tidak stabil (Load failed). Silakan klik tombol Segarkan di bawah.'
+        ? 'Koneksi jaringan terputus atau tidak stabil (Load failed). Silakan klik tombol Refresh di bawah.'
         : rawMsg;
 
       setCustomers((prev) => {
@@ -584,7 +584,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] shadow-xs transition"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${customersLoading ? 'animate-spin' : ''}`} />
-                <span>Segarkan / Cek Ulang Sekarang</span>
+                <span>Refresh / Cek Ulang Sekarang</span>
               </button>
 
               {isAdmin && (

@@ -17,7 +17,6 @@ import {
   RotateCw,
   Calendar,
   MessageSquare,
-  Wifi,
 } from 'lucide-react';
 import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
 
@@ -38,7 +37,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
   });
   const [latestWishes, setLatestWishes] = useState<Rsvp[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string>('');
-  const [realtimeActive, setRealtimeActive] = useState<boolean>(false);
   const [hasNewInsert, setHasNewInsert] = useState<boolean>(false);
   const pollTimerRef = useRef<number | null>(null);
 
@@ -157,13 +155,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
           setTimeout(() => setHasNewInsert(false), 4000);
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setRealtimeActive(true);
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          setRealtimeActive(false);
-        }
-      });
+      .subscribe();
 
     pollTimerRef.current = window.setInterval(() => {
       fetchOverviewData(true);
@@ -213,22 +205,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
             </div>
           </div>
 
-          {/* Refresh button & live sync status */}
+          {/* Refresh button */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs text-[#456470]">
-              {realtimeActive ? (
-                <span className="inline-flex items-center gap-1.5 text-teal-800 font-semibold bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
-                  <span className="w-2 h-2 rounded-full bg-teal-500" />
-                  <span>Realtime aktif</span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-[#456470] bg-[#f0ebd9] px-2.5 py-1 rounded-full border border-[#ded4be]">
-                  <Wifi className="w-3 h-3 text-[#456470]" />
-                  <span>Update otomatis (60d)</span>
-                </span>
-              )}
-            </div>
-
             <button
               type="button"
               onClick={() => fetchOverviewData()}
@@ -236,7 +214,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ customer, onSelectTab 
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0E435A] hover:bg-[#154e66] active:scale-[0.98] text-[#FAF6EC] text-xs font-bold transition shadow-xs disabled:opacity-50 cursor-pointer"
             >
               <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>Segarkan</span>
+              <span>Refresh</span>
             </button>
           </div>
         </div>

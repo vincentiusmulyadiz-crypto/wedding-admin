@@ -1501,7 +1501,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             type="button"
             onClick={fetchExistingRsvps}
             className="p-2 rounded-xl bg-[#fffdfa] border border-[#ded4be] text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shadow-xs ml-auto"
-            title="Segarkan status konfirmasi tamu"
+            title="Refresh status konfirmasi tamu"
           >
             <RotateCw className={`w-4 h-4 ${loadingRsvps ? 'animate-spin' : ''}`} />
           </button>
