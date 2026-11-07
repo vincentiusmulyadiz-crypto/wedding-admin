@@ -128,55 +128,96 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 2. Draw Top Luxury Header
+      // 2. Draw Top Luxury Header with Cover Photo
       const bannerHeight = 160;
       ctx.save();
       ctx.beginPath();
       ctx.roundRect(30, 30, canvas.width - 60, bannerHeight, [28, 28, 0, 0]);
       ctx.clip();
 
-      const bgGrad = ctx.createLinearGradient(0, 30, 0, bannerHeight + 30);
-      bgGrad.addColorStop(0, '#0E435A');
-      bgGrad.addColorStop(1, '#072430');
-      ctx.fillStyle = bgGrad;
+      // Base background
+      ctx.fillStyle = '#1c1917';
+      ctx.fillRect(30, 30, canvas.width - 60, bannerHeight);
+
+      // Load & Draw Cover Photo Image (with fallback)
+      const coverImg = new Image();
+      coverImg.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve) => {
+        coverImg.onload = () => {
+          try {
+            const imgAspect = coverImg.width / coverImg.height;
+            const bannerWidth = canvas.width - 60;
+            const bannerAspect = bannerWidth / bannerHeight;
+            let drawWidth = bannerWidth;
+            let drawHeight = bannerHeight;
+            let drawX = 30;
+            let drawY = 30;
+
+            if (imgAspect > bannerAspect) {
+              drawWidth = bannerHeight * imgAspect;
+              drawX = 30 - (drawWidth - bannerWidth) / 2;
+            } else {
+              drawHeight = bannerWidth / imgAspect;
+              drawY = 30 - (drawHeight - bannerHeight) / 2;
+            }
+            ctx.drawImage(coverImg, drawX, drawY, drawWidth, drawHeight);
+          } catch {
+            // ignore if draw fails
+          }
+          resolve();
+        };
+        coverImg.onerror = () => {
+          if (!coverImg.src.includes('wedding-cover.jpg')) {
+            coverImg.src = '/wedding-cover.jpg';
+          } else {
+            resolve();
+          }
+        };
+        coverImg.src = coverPhotoUrl || '/wedding-cover.jpg';
+      });
+
+      // Dark gradient overlay matching the web UI
+      const headerGrad = ctx.createLinearGradient(0, 30, 0, 30 + bannerHeight);
+      headerGrad.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
+      headerGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.65)');
+      headerGrad.addColorStop(1, 'rgba(0, 0, 0, 0.88)');
+      ctx.fillStyle = headerGrad;
       ctx.fillRect(30, 30, canvas.width - 60, bannerHeight);
 
       // Gold Badge Pill on Header
       ctx.fillStyle = '#DFD0B8';
       ctx.beginPath();
-      ctx.roundRect(canvas.width / 2 - 110, 60, 220, 38, 19);
+      ctx.roundRect(canvas.width / 2 - 100, 62, 200, 34, 17);
       ctx.fill();
 
       ctx.fillStyle = '#0E435A';
-      ctx.font = 'bold 13px Arial, Helvetica, sans-serif';
+      ctx.font = 'bold 12px Arial, Helvetica, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(categoryBadge, canvas.width / 2, 84);
 
-      // Subtitle "JOYEVER DIGITAL PASS"
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.font = 'bold 11px Arial, Helvetica, sans-serif';
-      ctx.fillText('JOYEVER DIGITAL PASS', canvas.width / 2, 125);
+      // Subtitle "JOYEVER DIGITAL ACCESS PASS"
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = 'bold 10px Arial, Helvetica, sans-serif';
+      ctx.fillText('JOYEVER DIGITAL ACCESS PASS', canvas.width / 2, 122);
       ctx.restore();
 
       // 3. Card Body Header (Couple Names)
       ctx.textAlign = 'center';
-
-      // Couple Names
       ctx.fillStyle = '#18181B';
       ctx.font = 'bold 28px Arial, Helvetica, sans-serif';
-      ctx.fillText(coupleTitle, canvas.width / 2, 255);
+      ctx.fillText(coupleTitle, canvas.width / 2, 248);
 
       // Venue & Date
       ctx.fillStyle = '#52525B';
       ctx.font = '14px Arial, Helvetica, sans-serif';
-      ctx.fillText(venueDate, canvas.width / 2, 290);
+      ctx.fillText(venueDate, canvas.width / 2, 282);
 
       // Thin Divider
       ctx.strokeStyle = '#E4E4E7';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(70, 330);
-      ctx.lineTo(canvas.width - 70, 330);
+      ctx.moveTo(70, 318);
+      ctx.lineTo(canvas.width - 70, 318);
       ctx.stroke();
 
       // 4. Draw QR Code
@@ -185,10 +226,11 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
 
       await new Promise<void>((resolve) => {
         qrImg.onload = () => {
-          const qrSize = 310;
+          const qrSize = 300;
           const qrX = (canvas.width - qrSize) / 2;
-          const qrY = 360;
+          const qrY = 345;
 
+          // Box border
           ctx.strokeStyle = '#18181B';
           ctx.lineWidth = 2;
           ctx.beginPath();
@@ -202,37 +244,65 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         qrImg.src = qrImageUrl;
       });
 
+      // Bottom Divider
+      ctx.strokeStyle = '#E4E4E7';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(70, 688);
+      ctx.lineTo(canvas.width - 70, 688);
+      ctx.stroke();
+
       // 5. Guest Salutation & Details
       ctx.fillStyle = '#18181B';
       ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 740);
+      ctx.fillText(`Dear, ${cleanName}`, canvas.width / 2, 730);
 
       ctx.fillStyle = '#52525B';
       ctx.font = '15px Arial, Helvetica, sans-serif';
-      ctx.fillText(`Valid for (${maxGuests}) person(s)`, canvas.width / 2, 775);
+      ctx.fillText(`Valid for (${maxGuests}) person(s)`, canvas.width / 2, 765);
 
       ctx.fillStyle = '#71717A';
       ctx.font = 'bold 14px "Courier New", monospace';
-      ctx.fillText(passId, canvas.width / 2, 807);
+      ctx.fillText(passId, canvas.width / 2, 798);
 
+      // Table Assignment (if any and table management is enabled)
       if (
         useTableManagement &&
         assignedTableText &&
         !assignedTableText.toLowerCase().includes('bebas') &&
         !assignedTableText.toLowerCase().includes('resepsi')
       ) {
-        ctx.fillStyle = '#0E435A';
-        ctx.font = 'bold 15px Arial, Helvetica, sans-serif';
         const seatPart = assignedSeatText ? ` · Kursi ${assignedSeatText}` : '';
-        ctx.fillText(`Meja: ${assignedTableText}${seatPart}`, canvas.width / 2, 898);
+        const tablePillText = `Meja: ${assignedTableText}${seatPart}`;
+
+        ctx.font = 'bold 14px Arial, Helvetica, sans-serif';
+        const textMetrics = ctx.measureText(tablePillText);
+        const pillWidth = Math.max(textMetrics.width + 36, 160);
+        const pillHeight = 32;
+        const pillX = (canvas.width - pillWidth) / 2;
+        const pillY = 824;
+
+        ctx.fillStyle = '#faf5ec';
+        ctx.beginPath();
+        ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 16);
+        ctx.fill();
+
+        ctx.strokeStyle = '#e4d7c0';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#0E435A';
+        ctx.textAlign = 'center';
+        ctx.fillText(tablePillText, canvas.width / 2, pillY + 21);
       }
 
+      // Footer note
       ctx.fillStyle = '#A1A1AA';
       ctx.font = '12px Arial, Helvetica, sans-serif';
       ctx.fillText(
         'Please present this card at the reception table upon arrival.',
         canvas.width / 2,
-        970
+        960
       );
 
       const link = document.createElement('a');
