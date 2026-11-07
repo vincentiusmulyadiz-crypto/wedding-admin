@@ -2056,9 +2056,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             category: qrPreviewGuest.category,
             table_id: qrPreviewGuest.table_id,
             tableName: qrPreviewGuest.assignedTable?.name,
+            invitationLink: qrPreviewGuest.link,
           }}
           customer={customer}
           tableName={qrPreviewGuest.assignedTable?.name}
+          invitationLink={qrPreviewGuest.link}
           onClose={() => setQrPreviewGuest(null)}
         />
       )}

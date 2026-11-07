@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { X, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Download, Copy, Check } from 'lucide-react';
 import type { Customer } from '../types/database';
 import {
   buildGuestQrPayload,
   generateGuestPassId,
   encodeGuestCode,
 } from '../lib/guestCode';
+import { getCustomerCoverPhoto, getWeddingEventDetails } from '../lib/tableSync';
 
 export interface EntrancePassGuestInfo {
   name: string;
@@ -16,6 +17,7 @@ export interface EntrancePassGuestInfo {
   table_id?: string;
   tableName?: string;
   seat_numbers?: string;
+  invitationLink?: string;
 }
 
 interface EntrancePassModalProps {
@@ -23,6 +25,9 @@ interface EntrancePassModalProps {
   customer: Customer;
   tableName?: string;
   seatNumbers?: string;
+  useTableManagement?: boolean;
+  guestCategoryEnabled?: boolean;
+  invitationLink?: string;
   onClose: () => void;
 }
 
@@ -31,39 +36,45 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   customer,
   tableName,
   seatNumbers,
+  useTableManagement = true,
+  guestCategoryEnabled = true,
+  invitationLink,
   onClose,
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedInvLink, setCopiedInvLink] = useState(false);
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState<string>(() => getCustomerCoverPhoto(customer));
+
+  useEffect(() => {
+    setCoverPhotoUrl(getCustomerCoverPhoto(customer));
+    const handleUpdate = () => setCoverPhotoUrl(getCustomerCoverPhoto(customer));
+    window.addEventListener('joyever:cover-photo-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('joyever:cover-photo-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [customer]);
 
   const cleanName = guest.name || 'Tamu Undangan';
   const passId = guest.passId || generateGuestPassId(cleanName, customer.slug || customer.couple_names);
   const guestCode = guest.code || encodeGuestCode(cleanName, guest.max_guests || 2);
-  const cleanCat = (guest.category || '').toUpperCase();
-  const isVipOrVvip = cleanCat === 'VIP' || cleanCat === 'VVIP';
-  const categoryBadge = isVipOrVvip ? `${cleanCat} ACCESS PASS` : 'ENTRANCE ACCESS PASS';
+  const cleanCat = (guest.category || '').trim().toUpperCase();
+  const isVipOrVvip = guestCategoryEnabled && (cleanCat === 'VIP' || cleanCat === 'VVIP');
+  const categoryBadge = isVipOrVvip ? `${cleanCat} PASS` : 'ENTRANCE PASS';
   const maxGuests = guest.max_guests || 2;
   const coupleTitle = customer.couple_names || 'Romeo & Juliet';
 
-  const lowerSlug = (customer.slug || '').toLowerCase();
-  const venueLabel = lowerSlug.includes('rima')
-    ? 'The Grand Ballroom Hall'
-    : lowerSlug.includes('indah')
-    ? 'The Heritage Hall at Plataran'
-    : 'The Grand Chapel Hall';
+  const { venueName, formattedDate } = getWeddingEventDetails(customer);
+  const venueDate = `${venueName} · ${formattedDate}`;
 
-  let formattedDate = customer.event_date || 'Jumat, 16 Oktober 2026';
-  if (customer.event_date && /^\d{4}-\d{2}-\d{2}/.test(customer.event_date)) {
-    const parsedDate = new Date(customer.event_date);
-    if (!isNaN(parsedDate.getTime())) {
-      formattedDate = parsedDate.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    }
-  }
-  const venueDate = `${venueLabel} · ${formattedDate}`;
+  const invitationHost = customer.domain || (customer.slug ? `${customer.slug}.joyever.id` : 'demo-joyfulday.joyever.id');
+  const baseInvitation = invitationHost.startsWith('http') ? invitationHost : `https://${invitationHost}`;
+  const finalInvitationUrl =
+    guest.invitationLink ||
+    invitationLink ||
+    `${baseInvitation.replace(/\/+$/, '')}/?to=${encodeURIComponent(cleanName)}&c=${guestCode}`;
 
   const assignedTableText = tableName || guest.tableName;
   const assignedSeatText = seatNumbers || guest.seat_numbers;
@@ -85,6 +96,18 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=2&data=${encodeURIComponent(
     qrTargetUrl
   )}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(qrTargetUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleCopyInvLink = () => {
+    navigator.clipboard.writeText(finalInvitationUrl);
+    setCopiedInvLink(true);
+    setTimeout(() => setCopiedInvLink(false), 2000);
+  };
 
   const handleDownloadCard = async () => {
     setIsDownloading(true);
@@ -135,25 +158,20 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       ctx.fillText('JOYEVER DIGITAL PASS', canvas.width / 2, 125);
       ctx.restore();
 
-      // 3. Card Body Header
+      // 3. Card Body Header (Couple Names)
       ctx.textAlign = 'center';
-
-      // Subtitle
-      ctx.fillStyle = '#71717A';
-      ctx.font = 'bold 13px Arial, Helvetica, sans-serif';
-      ctx.fillText('ENTRANCE PASS', canvas.width / 2, 230);
 
       // Couple Names
       ctx.fillStyle = '#18181B';
       ctx.font = 'bold 28px Arial, Helvetica, sans-serif';
-      ctx.fillText(coupleTitle, canvas.width / 2, 270);
+      ctx.fillText(coupleTitle, canvas.width / 2, 255);
 
       // Venue & Date
       ctx.fillStyle = '#52525B';
       ctx.font = '14px Arial, Helvetica, sans-serif';
-      ctx.fillText(venueDate, canvas.width / 2, 300);
+      ctx.fillText(venueDate, canvas.width / 2, 290);
 
-      // Divider
+      // Thin Divider
       ctx.strokeStyle = '#E4E4E7';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -198,6 +216,7 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       ctx.fillText(passId, canvas.width / 2, 807);
 
       if (
+        useTableManagement &&
         assignedTableText &&
         !assignedTableText.toLowerCase().includes('bebas') &&
         !assignedTableText.toLowerCase().includes('resepsi')
@@ -236,20 +255,32 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         className="relative w-full max-w-[360px] sm:max-w-[400px] bg-white text-zinc-900 rounded-3xl overflow-hidden shadow-2xl text-left font-arial border border-zinc-200/80"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Luxury Joyever Header */}
-        <div className="relative bg-gradient-to-b from-[#0E435A] to-[#072430] py-5 px-6 text-center text-white">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#DFD0B8] text-[#0E435A] text-[11px] sm:text-xs font-extrabold tracking-wider rounded-full uppercase shadow-xs mb-1.5">
-            {categoryBadge}
+        {/* Top Luxury Joyever Header with Cover Photo */}
+        <div className="relative h-28 sm:h-32 bg-stone-900 overflow-hidden flex flex-col items-center justify-center text-center text-white p-4">
+          <img
+            src={coverPhotoUrl}
+            alt="Wedding Cover"
+            className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/wedding-cover.jpg';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/40 pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 bg-[#DFD0B8] text-[#0E435A] text-[10px] sm:text-[11px] font-extrabold tracking-wider rounded-full uppercase shadow-xs mb-1">
+              {categoryBadge}
+            </div>
+            <p className="text-[9px] sm:text-[10px] tracking-widest uppercase font-bold text-white/85 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+              Joyever Digital Access Pass
+            </p>
           </div>
-          <p className="text-[10px] tracking-widest uppercase font-bold text-white/60">
-            Joyever Digital Access Pass
-          </p>
 
           {/* Top Right Close Button */}
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3.5 right-3.5 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition cursor-pointer shadow-md"
+            className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center bg-black/60 hover:bg-black/80 text-white rounded-full transition cursor-pointer shadow-md z-20 backdrop-blur-xs"
             title="Tutup (Esc)"
             aria-label="Tutup"
           >
@@ -260,9 +291,6 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
         {/* Card Body */}
         <div className="p-6 sm:p-7 space-y-3.5 font-arial text-center">
           <div>
-            <p className="font-arial text-[11px] sm:text-xs text-zinc-400 font-semibold uppercase tracking-widest">
-              Entrance Pass
-            </p>
             <h3 className="font-arial text-xl sm:text-2xl text-zinc-900 font-bold leading-snug pt-0.5">
               {coupleTitle}
             </h3>
@@ -295,7 +323,8 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
               {passId}
             </p>
 
-            {assignedTableText &&
+            {useTableManagement &&
+              assignedTableText &&
               !assignedTableText.toLowerCase().includes('bebas') &&
               !assignedTableText.toLowerCase().includes('resepsi') && (
                 <div className="pt-1">
@@ -325,6 +354,43 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
             >
               Tutup
             </button>
+          </div>
+
+          {/* Link Undangan & QR Code Entrance Pass */}
+          <div className="pt-2.5 border-t border-zinc-100 text-left space-y-2">
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
+                <span className="font-semibold text-zinc-700">Link Undangan Digital:</span>
+                <button
+                  type="button"
+                  onClick={handleCopyInvLink}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0E435A] hover:underline cursor-pointer"
+                >
+                  {copiedInvLink ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  {copiedInvLink ? 'Tersalin' : 'Salin Undangan'}
+                </button>
+              </div>
+              <p className="text-[10px] font-mono text-zinc-600 bg-zinc-50 p-2 rounded-xl border border-zinc-200 break-all select-all">
+                {finalInvitationUrl}
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
+                <span className="font-semibold text-zinc-700">Link QR Entrance Pass:</span>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0E435A] hover:underline cursor-pointer"
+                >
+                  {copiedLink ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  {copiedLink ? 'Tersalin' : 'Salin QR Pass'}
+                </button>
+              </div>
+              <p className="text-[10px] font-mono text-zinc-600 bg-zinc-50 p-2 rounded-xl border border-zinc-200 break-all select-all">
+                {qrTargetUrl}
+              </p>
+            </div>
           </div>
         </div>
       </div>

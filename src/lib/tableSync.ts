@@ -227,6 +227,87 @@ export function isEventFilterEnabled(cust: Customer, cloudEnabled?: boolean | nu
   return false;
 }
 
+export function getCustomerCoverPhoto(cust?: Customer | null): string {
+  if (!cust) return '/wedding-cover.jpg';
+  try {
+    const slug = (cust.slug || '').toLowerCase().trim();
+    const customBg = localStorage.getItem(`welcome_cover_bg_${cust.id || slug}`);
+    if (customBg) return customBg;
+  } catch {}
+
+  const slug = (cust.slug || '').toLowerCase().trim();
+  if (slug) {
+    return `/${slug}/banner/banner-qr.jpg`;
+  }
+
+  const host = cust.domain || (cust.slug ? `${cust.slug}.joyever.id` : '');
+  if (host) return `https://${host}/banner/banner-qr.jpg`;
+
+  return '/wedding-cover.jpg';
+}
+
+export function getWeddingEventDetails(
+  cust?: Customer | null,
+  settings?: { venueName?: string; eventDateText?: string } | null
+): {
+  venueName: string;
+  formattedDate: string;
+} {
+  if (!cust) {
+    return {
+      venueName: 'The Grand Chapel Hall',
+      formattedDate: 'Jumat, 16 Oktober 2026',
+    };
+  }
+
+  const lowerSlug = (cust.slug || '').toLowerCase();
+  const lowerCouple = (cust.couple_names || '').toLowerCase();
+
+  // 1. Venue resolution
+  let venue = settings?.venueName?.trim() || '';
+  if (!venue) {
+    if (lowerSlug.includes('seno') || lowerCouple.includes('seno')) {
+      venue = 'The Heritage Hall at Plataran';
+    } else if (lowerSlug.includes('rima') || lowerCouple.includes('rima')) {
+      venue = 'The Grand Ballroom Hall';
+    } else if (lowerSlug.includes('aul') || lowerSlug.includes('farid') || lowerCouple.includes('farid')) {
+      venue = 'Grand Ballroom Aston Priority';
+    } else if (lowerSlug.includes('romeo') || lowerCouple.includes('romeo')) {
+      venue = 'The Grand Chapel Hall';
+    } else {
+      venue = 'The Grand Ballroom Hall';
+    }
+  }
+
+  // 2. Date resolution
+  let dateText = settings?.eventDateText?.trim() || '';
+  if (!dateText) {
+    if (cust.event_date && /^\d{4}-\d{2}-\d{2}/.test(cust.event_date)) {
+      const parsedDate = new Date(cust.event_date);
+      if (!isNaN(parsedDate.getTime())) {
+        dateText = parsedDate.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+      }
+    }
+    if (!dateText) {
+      if (lowerSlug.includes('seno') || lowerCouple.includes('seno')) {
+        dateText = 'Minggu, 22 November 2026';
+      } else {
+        dateText = 'Jumat, 16 Oktober 2026';
+      }
+    }
+  }
+
+  return {
+    venueName: venue,
+    formattedDate: dateText,
+  };
+}
+
 export async function setCustomerFeatureToggle(
   cust: Customer,
   feature: 'qrCheckin' | 'tableManagement' | 'guestCategory' | 'eventFilter',
