@@ -77,7 +77,7 @@ export function decodeGuestCode(code: string | null | undefined): string | null 
     if (decoded.includes(':::')) {
       decoded = decoded.split(':::')[0].trim();
     }
-    decoded = decoded.replace(/[:\s]+(\d+)$/g, '').trim();
+    decoded = decoded.replace(/:\s*(\d+)$/g, '').trim();
     return decoded || null;
   } catch {
     return null;
