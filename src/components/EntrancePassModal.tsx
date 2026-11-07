@@ -66,8 +66,8 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
   const maxGuests = guest.max_guests || 2;
   const coupleTitle = customer.couple_names || 'Romeo & Juliet';
 
-  const { venueName, formattedDate } = getWeddingEventDetails(customer);
-  const venueDate = `${venueName} · ${formattedDate}`;
+  const { formattedDate } = getWeddingEventDetails(customer);
+  const eventDateOnly = formattedDate;
 
   const invitationHost = customer.domain || (customer.slug ? `${customer.slug}.joyever.id` : 'demo-joyfulday.joyever.id');
   const baseInvitation = invitationHost.startsWith('http') ? invitationHost : `https://${invitationHost}`;
@@ -207,10 +207,10 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
       ctx.font = 'bold 28px Arial, Helvetica, sans-serif';
       ctx.fillText(coupleTitle, canvas.width / 2, 248);
 
-      // Venue & Date
+      // Event Date Only (Location detail removed)
       ctx.fillStyle = '#52525B';
       ctx.font = '14px Arial, Helvetica, sans-serif';
-      ctx.fillText(venueDate, canvas.width / 2, 282);
+      ctx.fillText(eventDateOnly, canvas.width / 2, 282);
 
       // Thin Divider
       ctx.strokeStyle = '#E4E4E7';
@@ -365,7 +365,7 @@ export const EntrancePassModal: React.FC<EntrancePassModalProps> = ({
               {coupleTitle}
             </h3>
             <p className="font-arial text-xs sm:text-sm text-zinc-500 leading-snug pt-0.5">
-              {venueDate}
+              {eventDateOnly}
             </p>
           </div>
 
