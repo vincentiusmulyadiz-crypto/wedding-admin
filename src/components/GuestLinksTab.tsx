@@ -760,6 +760,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickGroup, setQuickGroup] = useState<string>('');
   const [quickEventFilter, setQuickEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
 
+  // Active Guest Category (VIP / VVIP / Reguler) Feature Flag
+  const [activeGuestCategory, setActiveGuestCategory] = useState<boolean>(() => {
+    return Boolean(hasGuestCategory || isGuestCategoryEnabled(customer));
+  });
+
+  useEffect(() => {
+    setActiveGuestCategory(Boolean(hasGuestCategory || isGuestCategoryEnabled(customer)));
+  }, [hasGuestCategory, customer]);
+
   // Active Event Filter Feature Flag
   const [activeEventFilter, setActiveEventFilter] = useState<boolean>(() => {
     return Boolean(hasEventFilter || isEventFilterEnabled(customer));
@@ -774,11 +783,12 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       const customEvent = e as CustomEvent;
       if (customEvent.detail) {
         const { customerId, slug, feature, enabled } = customEvent.detail;
-        if (
-          (customerId === customer.id || slug === customer.slug || !customerId) &&
-          feature === 'eventFilter'
-        ) {
-          setActiveEventFilter(Boolean(enabled));
+        if (customerId === customer.id || slug === customer.slug || !customerId) {
+          if (feature === 'eventFilter') {
+            setActiveEventFilter(Boolean(enabled));
+          } else if (feature === 'guestCategory') {
+            setActiveGuestCategory(Boolean(enabled));
+          }
         }
       }
     };
@@ -834,6 +844,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         const sharedConfig = await loadSharedConfigFromCloud(customer);
         if (!isCancelled && typeof sharedConfig.eventFilterEnabled === 'boolean') {
           setActiveEventFilter(sharedConfig.eventFilterEnabled);
+        }
+        if (!isCancelled && typeof sharedConfig.guestCategoryEnabled === 'boolean') {
+          setActiveGuestCategory(sharedConfig.guestCategoryEnabled);
         }
 
         const cloudGuests = await loadGuestsFromCloud(customer);
@@ -1118,10 +1131,20 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           ? (guest.event_filter === 'akad' ? '&e=a' : '&e=r')
           : '';
 
+      // Hanya tambahkan kode kategori singkat (&k=v / &k=vv) bila fitur Kategori Tamu aktif dan bukan Reguler
+      const categoryParam =
+        activeGuestCategory && guest.category && guest.category !== 'Reguler'
+          ? guest.category === 'VVIP'
+            ? '&k=vv'
+            : guest.category === 'VIP'
+            ? '&k=v'
+            : ''
+          : '';
+
       const link =
         linkFormat === 'random'
-          ? `${effectiveBase}${separator}c=${code}${eventParam}`
-          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}${eventParam}`;
+          ? `${effectiveBase}${separator}c=${code}${eventParam}${categoryParam}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}${eventParam}${categoryParam}`;
 
       const lowerName = guest.name.trim().toLowerCase();
       const lowerCode = code.toLowerCase();
@@ -1169,7 +1192,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         passId,
       };
     });
-  }, [guests, tables, baseUrl, previewBaseUrl, existingRsvps, guestOpensMap, linkFormat, codesStorageKey]);
+  }, [guests, tables, baseUrl, previewBaseUrl, existingRsvps, guestOpensMap, linkFormat, codesStorageKey, activeEventFilter, activeGuestCategory]);
 
   // Filtered guest list based on search, phone filter, category, and 3-state status
   const filteredGuests = useMemo(() => {
@@ -1252,8 +1275,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       name: trimmed,
       phone: quickPhone.trim(),
       max_guests: finalQuickPax,
-      category: quickCategory,
-      group_name: hasQrCheckin && quickGroup.trim() ? quickGroup.trim() : undefined,
+      category: activeGuestCategory ? quickCategory : 'Reguler',
+      group_name: (activeGuestCategory || hasQrCheckin) && quickGroup.trim() ? quickGroup.trim() : undefined,
       table_id: quickTableId || undefined,
       event_filter: activeEventFilter ? quickEventFilter : 'all',
       code: encodeGuestCode(trimmed, finalQuickPax),
@@ -1288,6 +1311,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     updateAndPersistGuests(nextList);
     const label = eventFilter === 'akad' ? 'Akad Saja' : eventFilter === 'reception' ? 'Resepsi Saja' : 'Keduanya';
     showToast(`Tamu diundang ke: "${label}"`, 'success');
+  };
+
+  const handleQuickAssignCategory = (guestId: string, category: GuestCategory) => {
+    const nextList = guests.map((g) =>
+      g.id === guestId ? { ...g, category } : g
+    );
+    updateAndPersistGuests(nextList);
+    showToast(`Status tamu diubah menjadi: "${category}"`, 'success');
   };
 
   // Edit Handler for modal
@@ -1548,7 +1579,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           </div>
 
-          {(hasGuestCategory || hasQrCheckin) && (
+          {(activeGuestCategory || hasQrCheckin) && (
             <div className="sm:col-span-2">
               <input
                 type="text"
@@ -1561,7 +1592,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           )}
 
-          {hasGuestCategory && (
+          {activeGuestCategory && (
             <div className="sm:col-span-2">
               <select
                 value={quickCategory}
@@ -1576,7 +1607,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             </div>
           )}
 
-          <div className={hasGuestCategory || hasQrCheckin ? (quickIsCustomPax ? "sm:col-span-2" : "sm:col-span-1") : (quickIsCustomPax ? "sm:col-span-3" : "sm:col-span-2")}>
+          <div className={activeGuestCategory || hasQrCheckin ? (quickIsCustomPax ? "sm:col-span-2" : "sm:col-span-1") : (quickIsCustomPax ? "sm:col-span-3" : "sm:col-span-2")}>
             <div className="flex items-center gap-1">
               <select
                 value={quickIsCustomPax ? 'custom' : quickMaxGuests}
@@ -1801,7 +1832,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-[#52717b] font-medium hidden sm:inline">Filter:</span>
-            {hasGuestCategory && (
+            {activeGuestCategory && (
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value as any)}
@@ -1865,18 +1896,27 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {guest.name}
                       </span>
 
-                      {/* Kategori Badge */}
-                      {hasGuestCategory && (
-                        <span
+                      {/* Inline Quick Kategori Tamu Selector */}
+                      {activeGuestCategory && (
+                        <div
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${catBadgeClass}`}
-                          title="Kategori Tamu"
+                          title="Ubah Status Kategori Tamu (Reguler / VIP / VVIP)"
                         >
-                          <Crown className="w-3 h-3" />
-                          <span>{guest.category || 'Reguler'}</span>
-                        </span>
+                          <Crown className="w-3 h-3 shrink-0" />
+                          <select
+                            value={guest.category || 'Reguler'}
+                            onChange={(e) => handleQuickAssignCategory(guest.id, e.target.value as GuestCategory)}
+                            className="bg-transparent text-inherit font-bold focus:outline-none cursor-pointer text-[10px] pr-0.5"
+                            title="Pilih Status Tamu (Reguler / VIP / VVIP)"
+                          >
+                            <option value="Reguler" className="text-[#0e2c34] bg-white">Reguler</option>
+                            <option value="VIP" className="text-[#0e2c34] bg-white">VIP</option>
+                            <option value="VVIP" className="text-[#0e2c34] bg-white">VVIP</option>
+                          </select>
+                        </div>
                       )}
 
-                      {(hasGuestCategory || hasQrCheckin) && guest.group_name && (
+                      {(activeGuestCategory || hasQrCheckin) && guest.group_name && (
                         <span className="text-[10px] font-semibold text-[#52717b] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be]">
                           {guest.group_name}
                         </span>
@@ -2205,171 +2245,112 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 />
               </div>
 
-              {hasQrCheckin ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                        Kategori Tamu
-                      </label>
-                      <select
-                        value={inputCategory}
-                        onChange={(e) => setInputCategory(e.target.value as GuestCategory)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                      >
-                        <option value="Reguler">Reguler</option>
-                        <option value="VIP">★ VIP</option>
-                        <option value="VVIP">👑 VVIP</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                        Jatah Tamu Maks.
-                      </label>
-                      <select
-                        value={inputIsCustomPax ? 'custom' : inputMaxGuests}
-                        onChange={(e) => {
-                          if (e.target.value === 'custom') {
-                            setInputIsCustomPax(true);
-                            if (typeof inputMaxGuests === 'number' && inputMaxGuests <= 10) setInputMaxGuests(15);
-                          } else {
-                            setInputIsCustomPax(false);
-                            setInputMaxGuests(parseInt(e.target.value, 10) || 2);
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                      >
-                        <option value={1}>1 Orang</option>
-                        <option value={2}>2 Orang (Default)</option>
-                        <option value={3}>3 Orang</option>
-                        <option value={4}>4 Orang</option>
-                        <option value={5}>5 Orang</option>
-                        <option value={6}>6 Orang</option>
-                        <option value={7}>7 Orang</option>
-                        <option value={8}>8 Orang</option>
-                        <option value={9}>9 Orang</option>
-                        <option value={10}>10 Orang</option>
-                        <option value="custom">Lainnya (Ketik Sendiri...)</option>
-                      </select>
-                      {inputIsCustomPax && (
-                        <input
-                          type="number"
-                          min="1"
-                          max="500"
-                          value={inputMaxGuests}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '') {
-                              setInputMaxGuests('');
-                            } else {
-                              const num = parseInt(val, 10);
-                              if (!isNaN(num)) {
-                                setInputMaxGuests(Math.min(500, Math.max(0, num)));
-                              }
-                            }
-                          }}
-                          onBlur={() => {
-                            if (inputMaxGuests === '' || inputMaxGuests < 1) {
-                              setInputMaxGuests(1);
-                            }
-                          }}
-                          placeholder="Ketik jumlah tamu (misal: 15)"
-                          className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                        Grup / Keterangan
-                      </label>
-                      <input
-                        type="text"
-                        value={inputGroup}
-                        onChange={(e) => setInputGroup(e.target.value)}
-                        placeholder="Misal: Keluarga Bride"
-                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                        Penempatan Meja
-                      </label>
-                      <select
-                        value={inputTableId}
-                        onChange={(e) => setInputTableId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                      >
-                        <option value="">Belum Ditentukan</option>
-                        {tables.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            MEJA {t.code || t.name} ({t.capacity} Kursi)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </>
-              ) : (
+              {activeGuestCategory && (
                 <div>
                   <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                    Jatah Tamu Maks.
+                    Kategori Tamu
                   </label>
                   <select
-                    value={inputIsCustomPax ? 'custom' : inputMaxGuests}
-                    onChange={(e) => {
-                      if (e.target.value === 'custom') {
-                        setInputIsCustomPax(true);
-                        if (typeof inputMaxGuests === 'number' && inputMaxGuests <= 10) setInputMaxGuests(15);
-                      } else {
-                        setInputIsCustomPax(false);
-                        setInputMaxGuests(parseInt(e.target.value, 10) || 2);
-                      }
-                    }}
+                    value={inputCategory}
+                    onChange={(e) => setInputCategory(e.target.value as GuestCategory)}
                     className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                   >
-                    <option value={1}>1 Orang</option>
-                    <option value={2}>2 Orang (Default)</option>
-                    <option value={3}>3 Orang</option>
-                    <option value={4}>4 Orang</option>
-                    <option value={5}>5 Orang</option>
-                    <option value={6}>6 Orang</option>
-                    <option value={7}>7 Orang</option>
-                    <option value={8}>8 Orang</option>
-                    <option value={9}>9 Orang</option>
-                    <option value={10}>10 Orang</option>
-                    <option value="custom">Lainnya (Ketik Sendiri...)</option>
+                    <option value="Reguler">Reguler</option>
+                    <option value="VIP">★ VIP</option>
+                    <option value="VVIP">👑 VVIP</option>
                   </select>
-                  {inputIsCustomPax && (
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                  Jatah Tamu Maks.
+                </label>
+                <select
+                  value={inputIsCustomPax ? 'custom' : inputMaxGuests}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') {
+                      setInputIsCustomPax(true);
+                      if (typeof inputMaxGuests === 'number' && inputMaxGuests <= 10) setInputMaxGuests(15);
+                    } else {
+                      setInputIsCustomPax(false);
+                      setInputMaxGuests(parseInt(e.target.value, 10) || 2);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                >
+                  <option value={1}>1 Orang</option>
+                  <option value={2}>2 Orang (Default)</option>
+                  <option value={3}>3 Orang</option>
+                  <option value={4}>4 Orang</option>
+                  <option value={5}>5 Orang</option>
+                  <option value={6}>6 Orang</option>
+                  <option value={7}>7 Orang</option>
+                  <option value={8}>8 Orang</option>
+                  <option value={9}>9 Orang</option>
+                  <option value={10}>10 Orang</option>
+                  <option value="custom">Lainnya (Ketik Sendiri...)</option>
+                </select>
+                {inputIsCustomPax && (
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={inputMaxGuests}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setInputMaxGuests('');
+                      } else {
+                        const num = parseInt(val, 10);
+                        if (!isNaN(num)) {
+                          setInputMaxGuests(Math.min(500, Math.max(0, num)));
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      if (inputMaxGuests === '' || inputMaxGuests < 1) {
+                        setInputMaxGuests(1);
+                      }
+                    }}
+                    placeholder="Ketik jumlah tamu (misal: 15)"
+                    className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                  />
+                )}
+              </div>
+
+              {hasQrCheckin && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                      Grup / Keterangan
+                    </label>
                     <input
-                      type="number"
-                      min="1"
-                      max="500"
-                      value={inputMaxGuests}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '') {
-                          setInputMaxGuests('');
-                        } else {
-                          const num = parseInt(val, 10);
-                          if (!isNaN(num)) {
-                            setInputMaxGuests(Math.min(500, Math.max(0, num)));
-                          }
-                        }
-                      }}
-                      onBlur={() => {
-                        if (inputMaxGuests === '' || inputMaxGuests < 1) {
-                          setInputMaxGuests(1);
-                        }
-                      }}
-                      placeholder="Ketik jumlah tamu (misal: 15)"
-                      className="w-full px-3 py-2 mt-1.5 rounded-xl bg-white border border-[#0f3b47] text-[#0e2c34] text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                      type="text"
+                      value={inputGroup}
+                      onChange={(e) => setInputGroup(e.target.value)}
+                      placeholder="Misal: Keluarga Bride"
+                      className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                     />
-                  )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                      Penempatan Meja
+                    </label>
+                    <select
+                      value={inputTableId}
+                      onChange={(e) => setInputTableId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                    >
+                      <option value="">Belum Ditentukan</option>
+                      {tables.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          MEJA {t.code || t.name} ({t.capacity} Kursi)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
