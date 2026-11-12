@@ -7,6 +7,7 @@ import {
   getStoredSessionFromLocalStorage,
 } from './lib/supabase';
 import { Navbar, type TabType } from './components/Navbar';
+import { getAdminTabFromPath, syncAdminTabUrl } from './lib/tabRouting';
 import { Login } from './components/Login';
 import { OverviewTab } from './components/OverviewTab';
 import { GuestsTab } from './components/GuestsTab';
@@ -91,7 +92,9 @@ export function App() {
       email === 'vincentiusmulyadiz@gmail.com'
     );
   });
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>(() =>
+    typeof window !== 'undefined' ? getAdminTabFromPath(window.location.pathname) : 'overview'
+  );
   const [configOpen, setConfigOpen] = useState<boolean>(false);
   const [copiedUid, setCopiedUid] = useState<boolean>(false);
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
@@ -139,11 +142,32 @@ export function App() {
     [selectedCustomer, featureToggledTick]
   );
 
+  const navigateToTab = useCallback((nextTab: TabType) => {
+    setActiveTab(nextTab);
+    syncAdminTabUrl(nextTab);
+  }, []);
+
+  useEffect(() => {
+    // Normalize unknown paths cleanly to '/' on initial load
+    syncAdminTabUrl(getAdminTabFromPath(window.location.pathname), true);
+
+    const handlePopState = () => {
+      setActiveTab(getAdminTabFromPath(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   useEffect(() => {
     if (selectedCustomer && !hasTableManagement && activeTab === 'tables') {
       setActiveTab('overview');
+      syncAdminTabUrl('overview', true);
     }
-  }, [selectedCustomer, hasTableManagement, activeTab]);
+    if (!isAdmin && activeTab === 'customers') {
+      setActiveTab('overview');
+      syncAdminTabUrl('overview', true);
+    }
+  }, [selectedCustomer, hasTableManagement, isAdmin, activeTab]);
 
   // Global Toast state
   const [toasts, setToasts] = useState<ActiveToast[]>([]);
@@ -460,7 +484,7 @@ export function App() {
                 }}
         isAdmin={isAdmin}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={navigateToTab}
         userEmail={session.user.email || null}
         onLogout={handleLogout}
         canConfigureSupabase={isSuperAdmin}
@@ -485,7 +509,7 @@ export function App() {
             currentUserId={session.user.id}
           />
         ) : activeTab === 'tutorial' ? (
-          <TutorialTab onSelectTab={setActiveTab} />
+          <TutorialTab onSelectTab={navigateToTab} />
         ) : customers.length === 0 ? (
           /* Empty or Error state */
           <div className="max-w-xl mx-auto my-10 bg-[#fffdfa] border border-[#e3dac8] rounded-3xl p-6 sm:p-8 space-y-5 shadow-md">
@@ -590,7 +614,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
               {isAdmin && (
                 <button
                   type="button"
-                  onClick={() => setActiveTab('customers')}
+                  onClick={() => navigateToTab('customers')}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 shadow-xs active:scale-[0.98] transition cursor-pointer"
                 >
                   <Shield className="w-3.5 h-3.5 text-amber-700" />
@@ -610,7 +634,7 @@ ON CONFLICT (slug) DO UPDATE SET owner_id = EXCLUDED.owner_id;`}
               <OverviewTab
                 key={selectedCustomer.id || selectedCustomer.slug}
                 customer={selectedCustomer}
-                onSelectTab={setActiveTab}
+                onSelectTab={navigateToTab}
               />
             )}
 
