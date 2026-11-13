@@ -71,7 +71,7 @@ export const TutorialTab: React.FC<TutorialTabProps> = ({ onSelectTab }) => {
             </div>
             <h3 className="font-bold text-sm text-[#0e2c34]">Tambah & Tempel Nama Tamu</h3>
             <p className="text-xs text-[#52717b] leading-relaxed">
-              Ketik nama tamu & nomor WhatsApp lalu klik <strong>"Tambah Tamu"</strong>, atau klik tombol <strong>"Tempel Banyak Sekaligus"</strong> di bilah atas untuk menyalin daftar nama massal dari WhatsApp atau Excel.
+              Ketik nama tamu & nomor WhatsApp lalu klik <strong>"Tambah Tamu"</strong>, atau klik tombol <strong>"Tambah Tamu dari Kontak / List"</strong> di bilah atas untuk memilih kontak HP atau menyalin daftar nama massal dari WhatsApp/Excel.
             </p>
           </div>
 
