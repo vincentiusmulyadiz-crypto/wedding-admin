@@ -35,7 +35,6 @@ import {
   Trash2,
   RotateCw,
   Search,
-  Upload,
   X,
   Send,
   Sliders,
@@ -812,7 +811,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [batchText, setBatchText] = useState<string>('');
   const [batchEventFilter, setBatchEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
   const [replaceExisting, setReplaceExisting] = useState<boolean>(false);
-  const vcfInputRef = useRef<HTMLInputElement | null>(null);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -1414,151 +1412,6 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setShowBatchModal(true);
   };
 
-  const formatContactPhone = (raw?: string): string => {
-    if (!raw) return '';
-    const digits = raw.replace(/[^0-9]/g, '');
-    if (!digits) return '';
-    if (digits.startsWith('62')) return '0' + digits.slice(2);
-    if (digits.startsWith('8')) return '0' + digits;
-    return digits;
-  };
-
-  const appendContactsToBatchText = (entries: Array<{ name: string; phone: string }>) => {
-    const newLines = entries
-      .map((e) => {
-        const cleanName = e.name.replace(/[,;\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!cleanName) return '';
-        const cleanPhone = formatContactPhone(e.phone);
-        return cleanPhone ? `${cleanName}, ${cleanPhone}, 2` : `${cleanName}, , 2`;
-      })
-      .filter(Boolean);
-
-    if (newLines.length === 0) {
-      showToast('Tidak ada kontak valid yang ditemukan.', 'error');
-      return;
-    }
-
-    setBatchText((prev) => {
-      const existing = prev
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const existingSet = new Set(existing.map((l) => l.toLowerCase()));
-      const merged = [...existing];
-      let added = 0;
-      for (const line of newLines) {
-        if (!existingSet.has(line.toLowerCase())) {
-          existingSet.add(line.toLowerCase());
-          merged.push(line);
-          added++;
-        }
-      }
-      showToast(
-        added > 0
-          ? `Berhasil memuat ${added} kontak ke daftar!`
-          : 'Kontak yang dipilih sudah ada di dalam daftar.',
-        added > 0 ? 'success' : 'info'
-      );
-      return merged.join('\n');
-    });
-  };
-
-  const handlePickDeviceContacts = async () => {
-    const nav = navigator as any;
-    // shortcut: iOS Safari locks navigator.contacts behind a flag, fallback to .vcf file picker on unsupported browsers
-    if ('contacts' in nav && typeof nav.contacts?.select === 'function') {
-      try {
-        const selected = await nav.contacts.select(['name', 'tel'], { multiple: true });
-        if (!selected || selected.length === 0) return;
-        const parsed: Array<{ name: string; phone: string }> = selected.map((c: any) => ({
-          name: Array.isArray(c.name) && c.name[0] ? String(c.name[0]) : '',
-          phone: Array.isArray(c.tel) && c.tel[0] ? String(c.tel[0]) : '',
-        }));
-        appendContactsToBatchText(parsed);
-        return;
-      } catch (err: any) {
-        if (err?.name === 'AbortError' || err?.name === 'InvalidStateError') return;
-      }
-    }
-    vcfInputRef.current?.click();
-  };
-
-  const decodeVCardValue = (val: string, isQP: boolean): string => {
-    let out = val.trim();
-    if (isQP) {
-      const bytes: number[] = [];
-      for (let i = 0; i < out.length; i++) {
-        if (out[i] === '=' && /^[0-9A-Fa-f]{2}$/.test(out.slice(i + 1, i + 3))) {
-          bytes.push(parseInt(out.slice(i + 1, i + 3), 16));
-          i += 2;
-        } else {
-          bytes.push(out.charCodeAt(i));
-        }
-      }
-      try {
-        out = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
-      } catch {
-        // Keep raw if malformed
-      }
-    }
-    return out.replace(/\\[nN,;\\]/g, ' ').trim();
-  };
-
-  const handleVcfFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const allContacts: Array<{ name: string; phone: string }> = [];
-    for (const file of Array.from(files)) {
-      const rawText = await file.text();
-      const unfolded = rawText
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
-        .replace(/=\n/g, '')
-        .replace(/\n[ \t]/g, '');
-
-      const cards = unfolded.split(/BEGIN:VCARD/i).slice(1);
-      for (const card of cards) {
-        const body = card.split(/END:VCARD/i)[0] || '';
-        const lines = body.split('\n');
-        let fullName = '';
-        let fallbackName = '';
-        let firstPhone = '';
-
-        for (const line of lines) {
-          const fnMatch = line.match(/^(?:item\d+\.)?FN(?:;([^:]*))?:(.*)$/i);
-          if (fnMatch && !fullName) {
-            const isQP = /ENCODING=QUOTED-PRINTABLE/i.test(fnMatch[1] || '');
-            fullName = decodeVCardValue(fnMatch[2], isQP);
-            continue;
-          }
-          const nMatch = line.match(/^(?:item\d+\.)?N(?:;([^:]*))?:(.*)$/i);
-          if (nMatch && !fallbackName) {
-            const isQP = /ENCODING=QUOTED-PRINTABLE/i.test(nMatch[1] || '');
-            const parts = nMatch[2].split(';').map((p) => decodeVCardValue(p, isQP));
-            fallbackName = [parts[3], parts[1], parts[2], parts[0], parts[4]]
-              .filter(Boolean)
-              .join(' ')
-              .trim();
-            continue;
-          }
-          const telMatch = line.match(/^(?:item\d+\.)?TEL(?:;[^:]*)?:(.*)$/i);
-          if (telMatch && !firstPhone) {
-            firstPhone = telMatch[1].replace(/^tel:/i, '').trim();
-          }
-        }
-
-        const finalName = fullName || fallbackName;
-        if (finalName) {
-          allContacts.push({ name: finalName, phone: firstPhone });
-        }
-      }
-    }
-
-    e.target.value = '';
-    appendContactsToBatchText(allContacts);
-  };
-
   // Batch Import Handler
   const handleImportBatch = () => {
     const lines = batchText
@@ -1662,7 +1515,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e6deca] border border-[#ded4be] transition shadow-xs"
           >
             <BookUser className="w-3.5 h-3.5 text-[#0f3b47]" />
-            <span>Tambah Tamu dari Kontak / List</span>
+            <span>Tempel Banyak Sekaligus</span>
           </button>
 
           <button
@@ -2016,7 +1869,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             <p className="text-xs text-[#52717b] max-w-sm mx-auto">
               {searchQuery
                 ? `Tidak ditemukan tamu dengan pencarian "${searchQuery}".`
-                : 'Silakan ketik nama tamu di kotak langkah 1 di atas atau gunakan tombol Tambah Tamu dari Kontak / List.'}
+                : 'Silakan ketik nama tamu di kotak langkah 1 di atas atau gunakan tombol Tempel Banyak Sekaligus.'}
             </p>
           </div>
         ) : (
@@ -2261,7 +2114,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
               <div className="flex items-center gap-2 text-[#0e2c34]">
                 <BookUser className="w-5 h-5 text-[#0f3b47]" />
-                <h3 className="text-base font-bold text-[#0e2c34]">Tambah Tamu dari Kontak / List</h3>
+                <h3 className="text-base font-bold text-[#0e2c34]">Tempel Daftar Tamu Sekaligus</h3>
               </div>
               <button
                 type="button"
@@ -2272,38 +2125,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 bg-[#f0ebd9]/70 border border-[#ded4be] rounded-2xl p-2.5">
-              <button
-                type="button"
-                onClick={handlePickDeviceContacts}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] transition shadow-xs cursor-pointer"
-              >
-                <BookUser className="w-4 h-4" />
-                <span>Pilih dari Kontak HP</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => vcfInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0f3b47] bg-[#fffdfa] hover:bg-[#faf6ee] border border-[#ded4be] transition shadow-xs cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>File Kontak (.vcf)</span>
-              </button>
-              <input
-                ref={vcfInputRef}
-                type="file"
-                accept=".vcf,text/vcard,text/x-vcard"
-                multiple
-                onChange={handleVcfFileUpload}
-                className="hidden"
-              />
-              <span className="text-[10px] text-[#52717b] leading-tight w-full sm:w-auto sm:flex-1">
-                Android: pilih langsung dari Buku Kontak. iPhone/iOS: bagikan/ekspor kontak ke file <strong>.vcf</strong> lalu pilih di sini.
-              </span>
-            </div>
-
             <p className="text-xs text-[#52717b] leading-relaxed">
-              Pilih dari kontak HP di atas atau tempel daftar tamu Anda di bawah ini (satu baris per tamu). Format: <code className="text-[#0e2c34] font-bold">Nama, Nomor HP, Jatah Tamu</code> (opsional, default 2 orang, maks 6) atau cukup <code className="text-[#0e2c34] font-bold">Nama</code> saja jika belum ada nomor.
+              Salin dan tempel daftar tamu Anda di sini (satu baris per tamu). Format: <code className="text-[#0e2c34] font-bold">Nama, Nomor HP, Jatah Tamu</code> (opsional, default 2 orang, maks 6) atau cukup <code className="text-[#0e2c34] font-bold">Nama</code> saja jika belum ada nomor.
             </p>
 
             <textarea
