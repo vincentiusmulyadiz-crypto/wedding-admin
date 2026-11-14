@@ -58,6 +58,7 @@ export interface InvitedGuest {
   max_guests?: number;
   category?: GuestCategory;
   group_name?: string;
+  is_group?: boolean;
   table_id?: string;
   event_filter?: 'all' | 'akad' | 'reception';
   opened_at?: string | null;
@@ -440,15 +441,18 @@ export const loadGuestsFromCloud = async (cust: Customer): Promise<InvitedGuest[
             localQuota && localQuota !== 2
               ? localQuota
               : cloudQuota || ext?.max_guests || localQuota || 2;
+          const isGroup =
+            g.phone === 'GROUP_WA' || Boolean(localGuest?.is_group) || Boolean(ext?.is_group);
           return {
             id: g.id || `db-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             name: g.name,
-            phone: g.phone || '',
+            phone: g.phone === 'GROUP_WA' ? '' : (g.phone || ''),
             code: g.code,
             opened_at: g.opened_at || null,
             max_guests: resolvedQuota,
             category: localGuest?.category || ext?.category || 'Reguler',
             group_name: localGuest?.group_name ?? ext?.group_name ?? '',
+            is_group: isGroup,
             table_id: localGuest?.table_id ?? ext?.table_id ?? '',
             event_filter: (localGuest?.event_filter || ext?.event_filter || 'all') as any,
           };
@@ -558,6 +562,7 @@ export const saveGuestsToCloud = async (
           guestMetaMap[g.name.trim().toLowerCase()] = {
             category: g.category || 'Reguler',
             group_name: g.group_name || '',
+            is_group: Boolean(g.is_group),
             table_id: g.table_id || '',
             max_guests: quota,
             event_filter: g.event_filter || 'all',
@@ -566,6 +571,7 @@ export const saveGuestsToCloud = async (
             guestMetaMap[validCode] = {
               category: g.category || 'Reguler',
               group_name: g.group_name || '',
+              is_group: Boolean(g.is_group),
               table_id: g.table_id || '',
               max_guests: quota,
               event_filter: g.event_filter || 'all',
@@ -575,7 +581,7 @@ export const saveGuestsToCloud = async (
           return {
             customer_id: cust.id,
             name: g.name,
-            phone: g.phone || '',
+            phone: g.is_group ? 'GROUP_WA' : (g.phone || ''),
             code: validCode,
             opened_at: preservedOpenedAt,
           };
@@ -753,11 +759,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Quick Inline Add in Step 1
   const [quickName, setQuickName] = useState<string>('');
   const [quickPhone, setQuickPhone] = useState<string>('');
+  const [quickIsGroup, setQuickIsGroup] = useState<boolean>(false);
   const [quickMaxGuests, setQuickMaxGuests] = useState<number | ''>(2);
   const [quickIsCustomPax, setQuickIsCustomPax] = useState<boolean>(false);
   const [quickCategory, setQuickCategory] = useState<GuestCategory>('Reguler');
   const [quickTableId, setQuickTableId] = useState<string>('');
-  const [quickGroup, setQuickGroup] = useState<string>('');
   const [quickEventFilter, setQuickEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
 
   // Active Guest Category (VIP / VVIP / Reguler) Feature Flag
@@ -799,10 +805,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   // Form Fields for Add / Edit modal
   const [inputName, setInputName] = useState<string>('');
   const [inputPhone, setInputPhone] = useState<string>('');
+  const [inputIsGroup, setInputIsGroup] = useState<boolean>(false);
   const [inputMaxGuests, setInputMaxGuests] = useState<number | ''>(2);
   const [inputIsCustomPax, setInputIsCustomPax] = useState<boolean>(false);
   const [inputCategory, setInputCategory] = useState<GuestCategory>('Reguler');
-  const [inputGroup, setInputGroup] = useState<string>('');
   const [inputTableId, setInputTableId] = useState<string>('');
   const [inputEventFilter, setInputEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
   const [formError, setFormError] = useState<string | null>(null);
@@ -1141,17 +1147,33 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             : ''
           : '';
 
+      const groupParam = guest.is_group ? '&g=1' : '';
       const link =
         linkFormat === 'random'
-          ? `${effectiveBase}${separator}c=${code}${eventParam}${categoryParam}`
-          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}${eventParam}${categoryParam}`;
+          ? `${effectiveBase}${separator}c=${code}${groupParam}${eventParam}${categoryParam}`
+          : `${effectiveBase}${separator}to=${encodeURIComponent(guest.name).replace(/%20/g, '+')}&pax=${quota}${groupParam}${eventParam}${categoryParam}`;
 
       const lowerName = guest.name.trim().toLowerCase();
       const lowerCode = code.toLowerCase();
-      let rsvpRow = rsvpMap.get(lowerName) || rsvpMap.get(lowerCode);
 
-      // Fallback matching: jika tamu di masa lalu mengubah nama (misal "Budi Santoso & Istri" vs "Budi Santoso")
-      if (!rsvpRow && existingRsvps.length > 0) {
+      // Match all RSVPs belonging to this group if guest.is_group is true
+      const groupRsvps: Rsvp[] = guest.is_group
+        ? existingRsvps.filter((r) => {
+            const gp = (r.guest_param || '').trim().toLowerCase();
+            return (
+              gp === `group:${lowerName}` ||
+              gp === lowerCode ||
+              gp === lowerName
+            );
+          })
+        : [];
+
+      let rsvpRow = guest.is_group
+        ? groupRsvps[0]
+        : rsvpMap.get(lowerName) || rsvpMap.get(lowerCode);
+
+      // Fallback matching: jika tamu individu mengubah nama (misal "Budi Santoso & Istri" vs "Budi Santoso")
+      if (!guest.is_group && !rsvpRow && existingRsvps.length > 0) {
         rsvpRow = existingRsvps.find((r) => {
           if (!r.name) return false;
           const rName = r.name.trim().toLowerCase();
@@ -1165,7 +1187,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         });
       }
 
-      const isRsvped = Boolean(rsvpRow);
+      const isRsvped = guest.is_group ? groupRsvps.length > 0 : Boolean(rsvpRow);
+      const totalGroupPax = guest.is_group
+        ? groupRsvps.reduce((sum, r) => sum + (r.attendance === 'tidak_hadir' ? 0 : (Number(r.guests) || 1)), 0)
+        : 0;
 
       const openedAt = guest.opened_at || guestOpensMap.get(code) || guestOpensMap.get(lowerName) || null;
       const isOpened = Boolean(openedAt);
@@ -1185,7 +1210,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
         openedAtFormatted: formatOpenedTime(openedAt),
         status,
         rsvpAttendance: rsvpRow?.attendance || null,
-        rsvpGuests: rsvpRow?.guests || null,
+        rsvpGuests: guest.is_group ? totalGroupPax : (rsvpRow?.guests || null),
+        groupRsvps,
         max_guests: quota,
         category,
         assignedTable,
@@ -1273,10 +1299,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const newGuest: InvitedGuest = {
       id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: trimmed,
-      phone: quickPhone.trim(),
+      phone: quickIsGroup ? '' : quickPhone.trim(),
+      is_group: quickIsGroup,
       max_guests: finalQuickPax,
       category: activeGuestCategory ? quickCategory : 'Reguler',
-      group_name: (activeGuestCategory || hasQrCheckin) && quickGroup.trim() ? quickGroup.trim() : undefined,
       table_id: quickTableId || undefined,
       event_filter: activeEventFilter ? quickEventFilter : 'all',
       code: encodeGuestCode(trimmed, finalQuickPax),
@@ -1289,10 +1315,14 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setQuickMaxGuests(2);
     setQuickIsCustomPax(false);
     setQuickCategory('Reguler');
-    setQuickGroup('');
     setQuickTableId('');
     setQuickEventFilter('all');
-    showToast(`Tamu "${trimmed}" (${quickCategory} • Jatah: ${finalQuickPax} Tamu) berhasil ditambahkan!`, 'success');
+    showToast(
+      quickIsGroup
+        ? `Tautan Grup "${trimmed}" (Maks: ${finalQuickPax} Pax/Anggota) berhasil dibuat!`
+        : `Tamu "${trimmed}" (${quickCategory} • Jatah: ${finalQuickPax} Tamu) berhasil ditambahkan!`,
+      'success'
+    );
   };
 
   // Quick Change Guest Category, Table, or Event inline
@@ -1326,11 +1356,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     setEditingGuest(guest);
     setInputName(guest.name);
     setInputPhone(guest.phone);
+    setInputIsGroup(Boolean(guest.is_group));
     const guestPax = guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2;
     setInputMaxGuests(guestPax);
     setInputIsCustomPax(guestPax > 10);
     setInputCategory(guest.category || 'Reguler');
-    setInputGroup(guest.group_name || '');
     setInputTableId(guest.table_id || '');
     setInputEventFilter(guest.event_filter || 'all');
     setFormError(null);
@@ -1341,7 +1371,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     e.preventDefault();
     const trimmedName = inputName.trim();
     if (!trimmedName) {
-      setFormError('Nama tamu wajib diisi.');
+      setFormError('Nama wajib diisi.');
       return;
     }
 
@@ -1353,10 +1383,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           ? {
               ...g,
               name: trimmedName,
-              phone: inputPhone.trim(),
+              phone: inputIsGroup ? '' : inputPhone.trim(),
+              is_group: inputIsGroup,
               max_guests: finalInputPax,
               category: inputCategory,
-              group_name: inputGroup.trim() || undefined,
               table_id: inputTableId || undefined,
               event_filter: activeEventFilter ? inputEventFilter : 'all',
               code: encodeGuestCode(trimmedName, finalInputPax),
@@ -1368,10 +1398,10 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       const newGuest: InvitedGuest = {
         id: `guest-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         name: trimmedName,
-        phone: inputPhone.trim(),
+        phone: inputIsGroup ? '' : inputPhone.trim(),
+        is_group: inputIsGroup,
         max_guests: finalInputPax,
         category: inputCategory,
-        group_name: inputGroup.trim() || undefined,
         table_id: inputTableId || undefined,
         event_filter: activeEventFilter ? inputEventFilter : 'all',
         code: encodeGuestCode(trimmedName, finalInputPax),
@@ -1541,56 +1571,99 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
       {/* LANGKAH 1: Tempel / Input Nama Tamu */}
       <div className="bg-[#fffdfa] border border-[#e5dcce] rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
-        <div className="flex items-center justify-between border-b border-[#eee5d4] pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-[#eee5d4] pb-3">
           <h2 className="text-base font-bold text-[#0e2c34] flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-[#0f3b47] text-white text-xs flex items-center justify-center font-bold">1</span>
             <span>Tempel & Tambah Nama Tamu</span>
           </h2>
-          {activeEventFilter && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-              <Filter className="w-3 h-3 text-amber-600" />
-              <span>Filter Acara Aktif</span>
-            </span>
-          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl border border-[#ded4be] p-0.5 bg-[#faf6ee] text-xs" role="group" aria-label="Pilih tipe undangan">
+              <button
+                type="button"
+                onClick={() => setQuickIsGroup(false)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                  !quickIsGroup
+                    ? 'bg-[#0f3b47] text-white shadow-xs'
+                    : 'text-[#52717b] hover:text-[#0e2c34]'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Tamu Individu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickIsGroup(true)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                  quickIsGroup
+                    ? 'bg-[#0f3b47] text-white shadow-xs'
+                    : 'text-[#52717b] hover:text-[#0e2c34]'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Grup WhatsApp</span>
+              </button>
+            </div>
+
+            {activeEventFilter && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <Filter className="w-3 h-3 text-amber-600" />
+                <span>Filter Acara Aktif</span>
+              </span>
+            )}
+          </div>
         </div>
+
+        {quickIsGroup && (
+          <div className="p-3 rounded-2xl bg-[#f0ebd9]/80 border border-[#ded4be] text-xs text-[#2b4c56] leading-relaxed">
+            <strong className="text-[#0e2c34]">Mode Grup WhatsApp:</strong> Satu tautan grup dapat dibagikan langsung ke grup WA tanpa nomor telepon. Saat anggota grup membuka tautan, masing-masing mengisi namanya sendiri pada form RSVP sehingga kehadiran, jumlah pax, dan ucapan tercatat terpisah.
+          </div>
+        )}
 
         {/* Quick inline add form */}
         <form onSubmit={handleQuickAdd} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1">
-          <div className={hasQrCheckin ? "sm:col-span-3" : activeEventFilter ? "sm:col-span-3" : "sm:col-span-5"}>
+          <div
+            className={
+              quickIsGroup
+                ? activeGuestCategory && activeEventFilter
+                  ? 'sm:col-span-4'
+                  : activeGuestCategory || activeEventFilter
+                  ? 'sm:col-span-6'
+                  : 'sm:col-span-8'
+                : activeGuestCategory && activeEventFilter
+                ? 'sm:col-span-3'
+                : activeGuestCategory || activeEventFilter
+                ? 'sm:col-span-4'
+                : 'sm:col-span-5'
+            }
+          >
             <input
               type="text"
               autoComplete="name"
-              placeholder="Ketik Nama Tamu (contoh: Budi & Keluarga)"
+              placeholder={
+                quickIsGroup
+                  ? 'Ketik Nama Grup WA (contoh: Grup ABC / Alumni SMA)'
+                  : 'Ketik Nama Tamu (contoh: Budi & Keluarga)'
+              }
               value={quickName}
               onChange={(e) => setQuickName(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
             />
           </div>
 
-          <div className={hasQrCheckin ? "sm:col-span-2" : "sm:col-span-3"}>
-            <div className="relative">
-              <Phone className="w-3.5 h-3.5 text-[#819ea7] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="tel"
-                autoComplete="tel"
-                placeholder="Nomor WA (contoh: 08123456789)"
-                value={quickPhone}
-                onChange={(e) => setQuickPhone(e.target.value)}
-                className="w-full pl-8 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-              />
-            </div>
-          </div>
-
-          {(activeGuestCategory || hasQrCheckin) && (
-            <div className="sm:col-span-2">
-              <input
-                type="text"
-                placeholder="Grup (contoh: Keluarga)"
-                value={quickGroup}
-                onChange={(e) => setQuickGroup(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                title="Grup / Keterangan Tamu"
-              />
+          {!quickIsGroup && (
+            <div className={activeGuestCategory && activeEventFilter ? 'sm:col-span-2' : 'sm:col-span-3'}>
+              <div className="relative">
+                <Phone className="w-3.5 h-3.5 text-[#819ea7] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="Nomor WA (contoh: 08123456789)"
+                  value={quickPhone}
+                  onChange={(e) => setQuickPhone(e.target.value)}
+                  className="w-full pl-8 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                />
+              </div>
             </div>
           )}
 
@@ -1603,13 +1676,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 title="Kategori Tamu (Reguler / VIP / VVIP)"
               >
                 <option value="Reguler">Reguler</option>
-                <option value="VIP">★ VIP</option>
-                <option value="VVIP">👑 VVIP</option>
+                <option value="VIP">VIP</option>
+                <option value="VVIP">VVIP</option>
               </select>
             </div>
           )}
 
-          <div className={activeGuestCategory || hasQrCheckin ? (quickIsCustomPax ? "sm:col-span-2" : "sm:col-span-1") : (quickIsCustomPax ? "sm:col-span-3" : "sm:col-span-2")}>
+          <div className="sm:col-span-2">
             <div className="flex items-center gap-1">
               <select
                 value={quickIsCustomPax ? 'custom' : quickMaxGuests}
@@ -1623,18 +1696,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                   }
                 }}
                 className="w-full px-2 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-xs text-[#0e2c34] font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                title="Jatah Maksimal Tamu pada RSVP (1 s/d 10 atau Ketik Sendiri)"
+                title={
+                  quickIsGroup
+                    ? 'Jatah Maksimal Pax per Anggota Grup pada RSVP'
+                    : 'Jatah Maksimal Tamu pada RSVP (1 s/d 10 atau Ketik Sendiri)'
+                }
               >
-                <option value={1}>1 Tamu</option>
-                <option value={2}>2 Tamu (Default)</option>
-                <option value={3}>3 Tamu</option>
-                <option value={4}>4 Tamu</option>
-                <option value={5}>5 Tamu</option>
-                <option value={6}>6 Tamu</option>
-                <option value={7}>7 Tamu</option>
-                <option value={8}>8 Tamu</option>
-                <option value={9}>9 Tamu</option>
-                <option value={10}>10 Tamu</option>
+                <option value={1}>{quickIsGroup ? 'Maks 1 Pax / Anggota' : '1 Tamu'}</option>
+                <option value={2}>{quickIsGroup ? 'Maks 2 Pax / Anggota' : '2 Tamu (Default)'}</option>
+                <option value={3}>{quickIsGroup ? 'Maks 3 Pax / Anggota' : '3 Tamu'}</option>
+                <option value={4}>{quickIsGroup ? 'Maks 4 Pax / Anggota' : '4 Tamu'}</option>
+                <option value={5}>{quickIsGroup ? 'Maks 5 Pax / Anggota' : '5 Tamu'}</option>
+                <option value={6}>{quickIsGroup ? 'Maks 6 Pax / Anggota' : '6 Tamu'}</option>
+                <option value={7}>{quickIsGroup ? 'Maks 7 Pax / Anggota' : '7 Tamu'}</option>
+                <option value={8}>{quickIsGroup ? 'Maks 8 Pax / Anggota' : '8 Tamu'}</option>
+                <option value={9}>{quickIsGroup ? 'Maks 9 Pax / Anggota' : '9 Tamu'}</option>
+                <option value={10}>{quickIsGroup ? 'Maks 10 Pax / Anggota' : '10 Tamu'}</option>
                 <option value="custom">Lainnya...</option>
               </select>
               {quickIsCustomPax && (
@@ -1686,11 +1763,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             <button
               type="submit"
               disabled={!quickName.trim()}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs whitespace-nowrap"
-              title="Tambahkan tamu ini ke daftar"
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0f3b47] hover:bg-[#154e5e] disabled:opacity-40 transition shadow-xs whitespace-nowrap cursor-pointer"
+              title={quickIsGroup ? 'Buat tautan grup WhatsApp' : 'Tambahkan tamu ini ke daftar'}
             >
-              <UserPlus className="w-3.5 h-3.5 shrink-0" />
-              <span>Tambah Tamu</span>
+              {quickIsGroup ? <Users className="w-3.5 h-3.5 shrink-0" /> : <UserPlus className="w-3.5 h-3.5 shrink-0" />}
+              <span>{quickIsGroup ? 'Buat Link Grup' : 'Tambah Tamu'}</span>
             </button>
           </div>
         </form>
@@ -1898,6 +1975,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {guest.name}
                       </span>
 
+                      {guest.is_group && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#0f3b47] bg-[#e6f0f2] px-2 py-0.5 rounded-md border border-[#c4dce1]">
+                          <Users className="w-3 h-3 text-[#0f3b47]" />
+                          <span>Grup WhatsApp</span>
+                        </span>
+                      )}
+
                       {/* Inline Quick Kategori Tamu Selector */}
                       {activeGuestCategory && (
                         <div
@@ -1918,15 +2002,13 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         </div>
                       )}
 
-                      {(activeGuestCategory || hasQrCheckin) && guest.group_name && (
-                        <span className="text-[10px] font-semibold text-[#52717b] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be]">
-                          {guest.group_name}
-                        </span>
-                      )}
-
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0f3b47] bg-[#e6f0f2] px-2 py-0.5 rounded-md border border-[#c4dce1]" title="Jatah maksimal tamu pada formulir RSVP">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0f3b47] bg-[#f0ebd9] px-2 py-0.5 rounded-md border border-[#ded4be]" title="Jatah maksimal tamu pada formulir RSVP">
                         <Users className="w-3 h-3 text-[#0f3b47]" />
-                        <span>Jatah: {guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Tamu</span>
+                        <span>
+                          {guest.is_group
+                            ? `Maks: ${guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Pax / Anggota`
+                            : `Jatah: ${guest.max_guests && guest.max_guests > 0 ? guest.max_guests : 2} Tamu`}
+                        </span>
                       </span>
 
                       {/* Quick Table Selector */}
@@ -1966,23 +2048,32 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         </div>
                       )}
 
-                      {hasPhone ? (
-                        <span className="inline-flex items-center gap-1 font-mono text-[11px] text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                          <Phone className="w-3 h-3 text-teal-700" />
-                          <span>{formatPhoneNumber(guest.phone)}</span>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(guest)}
-                          className="text-[10px] text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 font-medium transition"
-                        >
-                          + Isi Nomor WA
-                        </button>
+                      {!guest.is_group && (
+                        hasPhone ? (
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                            <Phone className="w-3 h-3 text-teal-700" />
+                            <span>{formatPhoneNumber(guest.phone)}</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(guest)}
+                            className="text-[10px] text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 font-medium transition cursor-pointer"
+                          >
+                            + Isi Nomor WA
+                          </button>
+                        )
                       )}
 
                       {guest.status === 'rsvped' ? (
-                        guest.rsvpAttendance === 'tidak_hadir' ? (
+                        guest.is_group ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#D1FAE5] bg-[#064E3B] px-2 py-0.5 rounded-md border border-[#047857]/40 whitespace-nowrap">
+                            <CheckCircle2 className="w-3 h-3 text-[#34D399]" />
+                            <span>
+                              {guest.groupRsvps?.length || 1} Anggota Konfirmasi ({guest.rsvpGuests || 0} Pax)
+                            </span>
+                          </span>
+                        ) : guest.rsvpAttendance === 'tidak_hadir' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FFE4E6] bg-[#881337] px-2 py-0.5 rounded-md border border-[#BE123C]/40 whitespace-nowrap">
                             <XCircle className="w-3 h-3 text-[#FDA4AF]" />
                             <span>Tidak Hadir</span>
@@ -2023,17 +2114,17 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                       <button
                         type="button"
                         onClick={() => copyToClipboard(guest.link, guest.id)}
-                        className="p-1 rounded text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shrink-0"
+                        className="p-1 rounded text-[#52717b] hover:text-[#0e2c34] hover:bg-[#f0ebd9] transition shrink-0 cursor-pointer"
                         title="Salin tautan ini"
                       >
                         {isCopied ? <Check className="w-3.5 h-3.5 text-teal-700" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
 
-                      {hasQrCheckin && (
+                      {hasQrCheckin && !guest.is_group && (
                         <button
                           type="button"
                           onClick={() => setQrPreviewGuest(guest)}
-                          className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e5dec8] px-2 py-0.5 rounded border border-[#d5c8ad] transition"
+                          className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-[#0f3b47] bg-[#f0ebd9] hover:bg-[#e5dec8] px-2 py-0.5 rounded border border-[#d5c8ad] transition cursor-pointer"
                           title="Lihat Kode & QR Entrance Pass Tamu"
                         >
                           <QrCode className="w-3 h-3" />
@@ -2041,6 +2132,50 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         </button>
                       )}
                     </div>
+
+                    {/* Daftar Anggota Grup yang Sudah Konfirmasi RSVP */}
+                    {guest.is_group && guest.groupRsvps && guest.groupRsvps.length > 0 && (
+                      <div className="pt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-[#52717b]">Anggota tercatat:</span>
+                        {guest.groupRsvps.map((memberRsvp: Rsvp) => {
+                          const memberPassId = generateGuestPassId(
+                            memberRsvp.name,
+                            customer.slug || customer.couple_names
+                          );
+                          const memberCode = encodeGuestCode(memberRsvp.name, memberRsvp.guests || 2);
+                          return (
+                            <span
+                              key={memberRsvp.id}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-[#fffdfa] border border-[#d5c8ad] text-[11px] text-[#0e2c34]"
+                            >
+                              <span className="font-bold">{memberRsvp.name}</span>
+                              <span className="text-[10px] text-[#52717b]">
+                                ({memberRsvp.attendance === 'tidak_hadir' ? 'Tidak Hadir' : `${memberRsvp.guests} Pax`})
+                              </span>
+                              {hasQrCheckin && memberRsvp.attendance !== 'tidak_hadir' && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setQrPreviewGuest({
+                                      ...guest,
+                                      name: memberRsvp.name,
+                                      code: memberCode,
+                                      passId: memberPassId,
+                                      max_guests: memberRsvp.guests || 2,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[#0f3b47] hover:underline cursor-pointer"
+                                  title={`Lihat QR Pass untuk ${memberRsvp.name}`}
+                                >
+                                  <QrCode className="w-2.5 h-2.5" />
+                                  <span>{memberPassId}</span>
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* AKSI UTAMA: Tombol WhatsApp yang Menonjol */}
@@ -2051,13 +2186,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                       rel="noopener noreferrer"
                       className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-xs transition"
                       title={
-                        hasPhone
+                        guest.is_group
+                          ? `Bagikan tautan grup "${guest.name}" ke Grup WhatsApp`
+                          : hasPhone
                           ? `Buka WhatsApp langsung ke ${formatPhoneNumber(guest.phone)}`
                           : 'Kirim via WhatsApp (Pilih kontak manual di WA)'
                       }
                     >
                       <MessageCircle className="w-4 h-4 fill-white text-emerald-600" />
-                      <span>Kirim via WhatsApp</span>
+                      <span>{guest.is_group ? 'Bagikan ke Grup WA' : 'Kirim via WhatsApp'}</span>
                       <Send className="w-3.5 h-3.5 opacity-80" />
                     </a>
 
@@ -2234,14 +2371,50 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             <form onSubmit={handleSaveGuest} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                  Nama Tamu <span className="text-rose-600">*</span>
+                  Tipe Undangan
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#faf6ee] border border-[#ded4be]">
+                  <button
+                    type="button"
+                    onClick={() => setInputIsGroup(false)}
+                    className={`inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      !inputIsGroup
+                        ? 'bg-[#0f3b47] text-white shadow-xs'
+                        : 'text-[#52717b] hover:text-[#0e2c34]'
+                    }`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Tamu Individu</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputIsGroup(true)}
+                    className={`inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      inputIsGroup
+                        ? 'bg-[#0f3b47] text-white shadow-xs'
+                        : 'text-[#52717b] hover:text-[#0e2c34]'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Grup WhatsApp</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                  {inputIsGroup ? 'Nama Grup WhatsApp' : 'Nama Tamu'} <span className="text-rose-600">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={inputName}
                   onChange={(e) => setInputName(e.target.value)}
-                  placeholder="Contoh: Budi Santoso & Keluarga"
+                  placeholder={
+                    inputIsGroup
+                      ? 'Contoh: Grup ABC / Alumni SMA'
+                      : 'Contoh: Budi Santoso & Keluarga'
+                  }
                   className="w-full px-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                   autoFocus
                 />
@@ -2258,15 +2431,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                     className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
                   >
                     <option value="Reguler">Reguler</option>
-                    <option value="VIP">★ VIP</option>
-                    <option value="VVIP">👑 VVIP</option>
+                    <option value="VIP">VIP</option>
+                    <option value="VVIP">VVIP</option>
                   </select>
                 </div>
               )}
 
               <div>
                 <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                  Jatah Tamu Maks.
+                  {inputIsGroup ? 'Jatah Maksimal Pax per Anggota Grup' : 'Jatah Tamu Maks.'}
                 </label>
                 <select
                   value={inputIsCustomPax ? 'custom' : inputMaxGuests}
@@ -2322,37 +2495,22 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               </div>
 
               {hasQrCheckin && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                      Grup / Keterangan
-                    </label>
-                    <input
-                      type="text"
-                      value={inputGroup}
-                      onChange={(e) => setInputGroup(e.target.value)}
-                      placeholder="Misal: Keluarga Bride"
-                      className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                      Penempatan Meja
-                    </label>
-                    <select
-                      value={inputTableId}
-                      onChange={(e) => setInputTableId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                    >
-                      <option value="">Belum Ditentukan</option>
-                      {tables.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          MEJA {t.code || t.name} ({t.capacity} Kursi)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                    Penempatan Meja
+                  </label>
+                  <select
+                    value={inputTableId}
+                    onChange={(e) => setInputTableId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                  >
+                    <option value="">Belum Ditentukan</option>
+                    {tables.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        MEJA {t.code || t.name} ({t.capacity} Kursi)
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -2373,21 +2531,23 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-[#0e2c34] mb-1">
-                  Nomor WhatsApp / HP
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-[#819ea7] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="tel"
-                    value={inputPhone}
-                    onChange={(e) => setInputPhone(e.target.value)}
-                    placeholder="Contoh: 081234567890 atau 6281234567890"
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
-                  />
+              {!inputIsGroup && (
+                <div>
+                  <label className="block text-xs font-bold text-[#0e2c34] mb-1">
+                    Nomor WhatsApp / HP
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-[#819ea7] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="tel"
+                      value={inputPhone}
+                      onChange={(e) => setInputPhone(e.target.value)}
+                      placeholder="Contoh: 081234567890 atau 6281234567890"
+                      className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#faf6ee] border border-[#ded4be] text-[#0e2c34] text-xs placeholder-[#819ea7] focus:outline-none focus:ring-2 focus:ring-[#0f3b47]"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#eee5d4]">
                 <button

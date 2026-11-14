@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import type { Customer, Rsvp } from '../types/database';
+import type { AttendanceType, Customer, Rsvp } from '../types/database';
 import { getSupabase } from '../lib/supabase';
-import { formatDateTimeIndonesian, getDetailedAttendanceInfo } from '../lib/format';
+import { formatDateTimeIndonesian, getDetailedAttendanceInfo, classifyEventAttendance } from '../lib/format';
+import { decodeGuestCode } from '../lib/guestCode';
+import { loadStoredGuests } from './GuestLinksTab';
 import { DEMO_ROMEO_JULIET_RSVPS } from '../data/demoData';
 import { exportToCsv } from '../lib/csv';
 import { TableSkeleton } from './Skeleton';
@@ -21,6 +23,7 @@ import {
   RotateCw,
   X,
   MessageSquare,
+  MessageSquareOff,
   Clock,
   LinkIcon,
   ChevronDown,
@@ -100,8 +103,45 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
   // Delete modal state
   const [itemToDelete, setItemToDelete] = useState<Rsvp | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
+  const [chatToDelete, setChatToDelete] = useState<Rsvp | null>(null);
+  const [deletingChat, setDeletingChat] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [groupLookupMap, setGroupLookupMap] = useState<Record<string, string>>({});
+
+  const getCleanWishText = useCallback((msg: string | null | undefined): string => {
+    if (!msg) return '';
+    return msg.replace(/^\[Hadir:[^\]]+\]\s*/i, '').trim();
+  }, []);
+
+  const resolveGroupBadge = useCallback(
+    (item: Rsvp): string | null => {
+      const rawParam = (item.guest_param || '').trim();
+      if (!rawParam) return null;
+      if (rawParam.toUpperCase().startsWith('GROUP:')) {
+        const gName = rawParam.slice(6).trim();
+        return gName || null;
+      }
+      const lowerParam = rawParam.toLowerCase();
+      if (groupLookupMap[lowerParam]) {
+        return groupLookupMap[lowerParam];
+      }
+      const decoded = decodeGuestCode(rawParam);
+      if (decoded) {
+        const lowerDecoded = decoded.trim().toLowerCase();
+        if (groupLookupMap[lowerDecoded]) {
+          return groupLookupMap[lowerDecoded];
+        }
+        if (lowerDecoded !== (item.name || '').trim().toLowerCase()) {
+          return decoded.trim();
+        }
+      } else if (lowerParam !== (item.name || '').trim().toLowerCase() && rawParam.length <= 60) {
+        return rawParam;
+      }
+      return null;
+    },
+    [groupLookupMap]
+  );
 
   // Simulation cleanup state
   const [showConfirmSimulasiModal, setShowConfirmSimulasiModal] = useState<boolean>(false);
@@ -128,12 +168,43 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
     try {
       const supabase = getSupabase();
 
-      // Fetch all RSVPs for this customer from Supabase
-      const { data, error } = await supabase
-        .from('rsvps')
-        .select('*')
-        .eq('customer_id', customer.id)
-        .order('created_at', { ascending: false });
+      // Load local & cloud group link lookup map
+      const nextGroupMap: Record<string, string> = {};
+      try {
+        const localGuests = loadStoredGuests(customer);
+        localGuests.forEach((g) => {
+          if (g.is_group || g.phone === 'GROUP_WA') {
+            nextGroupMap[g.name.trim().toLowerCase()] = g.name.trim();
+            if (g.code) nextGroupMap[g.code.trim().toLowerCase()] = g.name.trim();
+          }
+        });
+      } catch {
+        // ignore local read error
+      }
+
+      const [{ data, error }, { data: guestRows }] = await Promise.all([
+        supabase
+          .from('rsvps')
+          .select('*')
+          .eq('customer_id', customer.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('guests')
+          .select('name, phone, code')
+          .eq('customer_id', customer.id),
+      ]);
+
+      if (guestRows && guestRows.length > 0) {
+        guestRows.forEach((gr: { name?: string; phone?: string; code?: string }) => {
+          const cleanName = (gr.name || '').replace(/:\s*\d+$/g, '').trim();
+          if (!cleanName || gr.code === '__TABLE_CONFIG__') return;
+          if (gr.phone === 'GROUP_WA') {
+            nextGroupMap[cleanName.toLowerCase()] = cleanName;
+            if (gr.code) nextGroupMap[gr.code.trim().toLowerCase()] = cleanName;
+          }
+        });
+      }
+      setGroupLookupMap(nextGroupMap);
 
       // Fallback for Romeo & Juliet demo data
       if ((error || !data || data.length === 0) && (customer.id.includes('demo') || customer.slug === 'romeo-juliet')) {
@@ -155,7 +226,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
     } finally {
       setLoading(false);
     }
-  }, [customer?.id, customer?.slug]);
+  }, [customer]);
 
   useEffect(() => {
     fetchGuests();
@@ -334,6 +405,117 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       showToast('Terjadi kesalahan saat menghapus data', 'error');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    if (!chatToDelete) return;
+    setDeletingChat(true);
+
+    try {
+      let preservedAttendance: AttendanceType = chatToDelete.attendance;
+      if (chatToDelete.attendance === 'hadir' && chatToDelete.message) {
+        const { category } = classifyEventAttendance(chatToDelete.attendance, chatToDelete.message);
+        if (category === 'semuanya') preservedAttendance = 'hadir_semua';
+        else if (category === 'resepsi_akad') preservedAttendance = 'hadir_keduanya';
+        else if (category === 'resepsi_saja') preservedAttendance = 'hadir_resepsi';
+        else if (category === 'akad_saja') preservedAttendance = 'hadir_pemberkatan';
+        else if (category === 'adat_saja') preservedAttendance = 'hadir_adat';
+      }
+
+      if (String(chatToDelete.id).startsWith('demo-') || customer.id.includes('demo') || customer.slug === 'romeo-juliet') {
+        setAllRsvps((prev) =>
+          prev.map((r) =>
+            r.id === chatToDelete.id ? { ...r, message: null, attendance: preservedAttendance } : r
+          )
+        );
+        if (selectedGuest?.id === chatToDelete.id) {
+          setSelectedGuest((prev) => (prev ? { ...prev, message: null, attendance: preservedAttendance } : null));
+        }
+        setChatToDelete(null);
+        showToast(`Ucapan dari "${chatToDelete.name}" berhasil dihapus`, 'success');
+        return;
+      }
+
+      const supabase = getSupabase();
+      let updatedSuccess = false;
+      let finalAttendance: AttendanceType = preservedAttendance;
+
+      // 1. Try direct UPDATE
+      const { data: updatedRows, error: updateErr } = await supabase
+        .from('rsvps')
+        .update({ message: null, attendance: preservedAttendance })
+        .eq('id', chatToDelete.id)
+        .select();
+
+      if (!updateErr && updatedRows && updatedRows.length > 0) {
+        updatedSuccess = true;
+      } else if (updateErr && preservedAttendance !== chatToDelete.attendance) {
+        const { data: retryRows, error: retryErr } = await supabase
+          .from('rsvps')
+          .update({ message: null })
+          .eq('id', chatToDelete.id)
+          .select();
+        if (!retryErr && retryRows && retryRows.length > 0) {
+          updatedSuccess = true;
+          finalAttendance = chatToDelete.attendance;
+        }
+      }
+
+      // 2. Fallback to DELETE + INSERT if UPDATE RLS policy is not active yet
+      if (!updatedSuccess) {
+        const { error: delErr } = await supabase
+          .from('rsvps')
+          .delete()
+          .eq('id', chatToDelete.id);
+
+        if (delErr) {
+          showToast('Gagal menghapus ucapan: ' + delErr.message, 'error');
+          return;
+        }
+
+        const basePayload = {
+          id: chatToDelete.id,
+          customer_id: chatToDelete.customer_id,
+          name: chatToDelete.name,
+          attendance: preservedAttendance,
+          guests: chatToDelete.guests,
+          message: null,
+          guest_param: chatToDelete.guest_param,
+          created_at: chatToDelete.created_at,
+        };
+
+        let { error: insErr } = await supabase.from('rsvps').insert(basePayload);
+        if (insErr && preservedAttendance !== chatToDelete.attendance) {
+          finalAttendance = chatToDelete.attendance;
+          const retryIns = await supabase.from('rsvps').insert({
+            ...basePayload,
+            attendance: chatToDelete.attendance,
+          });
+          insErr = retryIns.error;
+        }
+
+        if (insErr) {
+          showToast('Gagal menyimpan perubahan ucapan: ' + insErr.message, 'error');
+          return;
+        }
+      }
+
+      setAllRsvps((prev) =>
+        prev.map((r) =>
+          r.id === chatToDelete.id ? { ...r, message: null, attendance: finalAttendance } : r
+        )
+      );
+      if (selectedGuest?.id === chatToDelete.id) {
+        setSelectedGuest((prev) => (prev ? { ...prev, message: null, attendance: finalAttendance } : null));
+      }
+      showToast(`Ucapan chat dari "${chatToDelete.name}" berhasil dihapus (kehadiran tetap tersimpan)`, 'success');
+      setChatToDelete(null);
+    } catch (err) {
+      console.error('Delete chat error:', err);
+      showToast('Terjadi kesalahan saat menghapus ucapan tamu', 'error');
+    } finally {
+      setDeletingChat(false);
     }
   };
 
@@ -762,12 +944,12 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
       ) : (
         <div className="space-y-4">
           <p className="text-[11px] text-[#6d8a93] italic px-1">
-            💡 Tips: Klik pada baris atau kartu tamu untuk melihat ucapan lengkap dan detail lainnya.
+            Tips: Klik pada baris atau kartu tamu untuk melihat ucapan lengkap dan detail lainnya.
           </p>
 
           {/* Desktop Table View */}
           <div className="hidden md:block bg-[#fffdfa] border border-[#e5dcce] rounded-2xl overflow-x-auto shadow-xs transition-all duration-200 hover:shadow-md hover:border-[#cdbe9f]">
-            <table className="w-full text-left text-xs min-w-[700px]">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead className="bg-[#f5eedf] text-[#345761] font-bold border-b border-[#e5dcce]">
                 <tr>
                   <th className="py-3.5 px-4">Nama Tamu</th>
@@ -780,6 +962,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               <tbody className="divide-y divide-[#eee5d4]">
                 {paginatedRsvps.map((item) => {
                   const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
+                  const groupBadge = resolveGroupBadge(item);
+                  const cleanWish = getCleanWishText(item.message);
                   return (
                     <tr
                       key={item.id}
@@ -787,9 +971,17 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                       className="hover:bg-[#f5eedf]/60 cursor-pointer transition select-none"
                       title="Klik untuk membuka detail tamu"
                     >
-                      {/* 1. Nama */}
-                      <td className="py-3.5 px-4 font-bold text-[#0e2c34] max-w-[190px] truncate">
-                        {item.name}
+                      {/* 1. Nama + Badge Grup */}
+                      <td className="py-3.5 px-4 font-bold text-[#0e2c34] max-w-[230px]">
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="truncate max-w-full">{item.name}</span>
+                          {groupBadge && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#f0ebd9] text-[#0f3b47] border border-[#ded4be] truncate max-w-full">
+                              <Users className="w-2.5 h-2.5 shrink-0" />
+                              <span className="truncate">{groupBadge}</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* 2. Jumlah Tamu */}
@@ -820,9 +1012,27 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                         </div>
                       </td>
 
-                      {/* 4. Ucapan Cuplikan Singkat */}
-                      <td className="py-3.5 px-4 max-w-xs truncate text-[#2b4c56] italic">
-                        {item.message ? `"${item.message}"` : <span className="text-[#96adb5] not-italic">-</span>}
+                      {/* 4. Ucapan Cuplikan Singkat + Tombol Hapus Chat */}
+                      <td className="py-3.5 px-4 max-w-xs text-[#2b4c56]">
+                        {cleanWish ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate italic">"{cleanWish}"</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setChatToDelete(item);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 shrink-0 transition cursor-pointer"
+                              title="Hapus teks ucapan saja (konfirmasi kehadiran tetap tersimpan)"
+                            >
+                              <MessageSquareOff className="w-3 h-3" />
+                              <span>Hapus Chat</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[#96adb5] not-italic text-[11px]">Tidak ada pesan</span>
+                        )}
                       </td>
 
                       {/* 5. Waktu */}
@@ -840,6 +1050,8 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
           <div className="md:hidden space-y-3">
             {paginatedRsvps.map((item) => {
               const { badge, eventDetail } = getDetailedAttendanceInfo(item.attendance, item.message);
+              const groupBadge = resolveGroupBadge(item);
+              const cleanWish = getCleanWishText(item.message);
               return (
                 <div
                   key={item.id}
@@ -848,9 +1060,17 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1 min-w-0">
-                      <span className="font-bold text-[#0e2c34] text-xs sm:text-sm block [text-wrap:balance]">
-                        {item.name}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-[#0e2c34] text-xs sm:text-sm [text-wrap:balance]">
+                          {item.name}
+                        </span>
+                        {groupBadge && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#f0ebd9] text-[#0f3b47] border border-[#ded4be]">
+                            <Users className="w-2.5 h-2.5 shrink-0" />
+                            <span>{groupBadge}</span>
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap border ${badge.colorClass}`}
@@ -874,10 +1094,24 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                     </span>
                   </div>
 
-                  {item.message && (
-                    <p className="text-xs text-[#2b4c56] italic line-clamp-2 bg-[#faf6ee] p-2 rounded-xl border border-[#ded4be]">
-                      "{item.message}"
-                    </p>
+                  {cleanWish && (
+                    <div className="flex items-start justify-between gap-2 bg-[#faf6ee] p-2.5 rounded-xl border border-[#ded4be]">
+                      <p className="text-xs text-[#2b4c56] italic line-clamp-2 flex-1">
+                        "{cleanWish}"
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setChatToDelete(item);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 shrink-0 transition cursor-pointer"
+                        title="Hapus teks ucapan saja (konfirmasi kehadiran tetap tersimpan)"
+                      >
+                        <MessageSquareOff className="w-3 h-3" />
+                        <span>Hapus Chat</span>
+                      </button>
+                    </div>
                   )}
 
                   <div className="flex items-center justify-between text-[10px] text-[#698892] pt-1">
@@ -947,14 +1181,22 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#75949e] block">
                     Detail Konfirmasi Tamu
                   </span>
-                  <h3 className="text-xl font-bold text-[#0e2c34] mt-0.5">
-                    {selectedGuest.name}
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <h3 className="text-xl font-bold text-[#0e2c34]">
+                      {selectedGuest.name}
+                    </h3>
+                    {resolveGroupBadge(selectedGuest) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-[#f0ebd9] text-[#0f3b47] border border-[#ded4be]">
+                        <Users className="w-3 h-3 shrink-0" />
+                        <span>{resolveGroupBadge(selectedGuest)}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedGuest(null)}
-                  className="p-1.5 rounded-xl text-[#75949e] hover:text-[#0e2c34] hover:bg-[#f0ebd9]"
+                  className="p-1.5 rounded-xl text-[#75949e] hover:text-[#0e2c34] hover:bg-[#f0ebd9] cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1013,19 +1255,35 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
                     <span>Tautan Parameter:</span>
                   </div>
                   <span className="font-mono text-[#0e2c34] font-medium">
-                    {selectedGuest.guest_param || '(tanpa parameter)'}
+                    {resolveGroupBadge(selectedGuest) || selectedGuest.guest_param || '(tanpa parameter)'}
                   </span>
                 </div>
               </div>
 
               {/* Ucapan Lengkap */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-[#0e2c34] flex items-center gap-1.5">
-                  <MessageSquare className="w-4 h-4 text-[#0f3b47]" />
-                  <span>Ucapan & Doa Restu Lengkap:</span>
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#0e2c34] flex items-center gap-1.5">
+                    <MessageSquare className="w-4 h-4 text-[#0f3b47]" />
+                    <span>Ucapan & Doa Restu Lengkap:</span>
+                  </span>
+                  {getCleanWishText(selectedGuest.message) && (
+                    <button
+                      type="button"
+                      onClick={() => setChatToDelete(selectedGuest)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+                    >
+                      <MessageSquareOff className="w-3.5 h-3.5" />
+                      <span>Hapus Chat</span>
+                    </button>
+                  )}
+                </div>
                 <div className="p-4 rounded-2xl bg-[#faf6ee] border border-[#ded4be] text-sm text-[#0e2c34] leading-relaxed whitespace-pre-wrap italic">
-                  {selectedGuest.message ? `"${selectedGuest.message}"` : <span className="text-[#88a4ad] not-italic">(Tamu tidak meninggalkan pesan tertulis)</span>}
+                  {getCleanWishText(selectedGuest.message) ? (
+                    `"${getCleanWishText(selectedGuest.message)}"`
+                  ) : (
+                    <span className="text-[#88a4ad] not-italic">(Tamu tidak meninggalkan pesan tertulis atau ucapan telah dihapus)</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1035,7 +1293,7 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               <button
                 type="button"
                 onClick={() => setItemToDelete(selectedGuest)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Hapus Konfirmasi Ini</span>
@@ -1044,9 +1302,50 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
               <button
                 type="button"
                 onClick={() => setSelectedGuest(null)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] transition"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e6deca] transition cursor-pointer"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Chat Only Confirmation Modal */}
+      {chatToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#fffdfa] border border-[#ded4be] rounded-3xl w-full max-w-md p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-rose-700">
+              <div className="p-2.5 rounded-xl bg-rose-100 border border-rose-300">
+                <MessageSquareOff className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[#0e2c34]">Hapus Chat Ucapan Tamu?</h3>
+                <p className="text-xs text-[#52717b]">Konfirmasi kehadiran & jumlah pax tetap tersimpan</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#2b4c56] leading-relaxed">
+              Apakah Anda yakin ingin menghapus teks ucapan dari{' '}
+              <strong className="text-[#0e2c34]">"{chatToDelete.name}"</strong>? Ucapan akan hilang dari Live Chat undangan, tetapi data kehadiran tamu ini tetap tercatat di dashboard.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setChatToDelete(null)}
+                disabled={deletingChat}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#52717b] hover:text-[#0e2c34] bg-[#f0ebd9] hover:bg-[#e7e0cc] transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteChat}
+                disabled={deletingChat}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-50 transition shadow-xs cursor-pointer"
+              >
+                {deletingChat ? 'Menghapus Chat...' : 'Ya, Hapus Chat'}
               </button>
             </div>
           </div>

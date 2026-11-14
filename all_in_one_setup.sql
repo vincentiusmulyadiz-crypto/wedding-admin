@@ -146,6 +146,25 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Update rsvps: admin or owner of customer" ON public.rsvps;
+CREATE POLICY "Update rsvps: admin or owner of customer"
+ON public.rsvps FOR UPDATE
+TO authenticated
+USING (
+  public.is_admin() OR 
+  EXISTS (
+    SELECT 1 FROM public.customers 
+    WHERE customers.id = rsvps.customer_id AND customers.owner_id = auth.uid()
+  )
+)
+WITH CHECK (
+  public.is_admin() OR 
+  EXISTS (
+    SELECT 1 FROM public.customers 
+    WHERE customers.id = rsvps.customer_id AND customers.owner_id = auth.uid()
+  )
+);
+
 -- Aktifkan Realtime untuk tabel rsvps
 DO $$
 BEGIN

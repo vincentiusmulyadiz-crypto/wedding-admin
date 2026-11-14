@@ -18,6 +18,7 @@ export interface WeddingTable {
 export interface GuestExtendedMeta {
   category?: GuestCategory;
   group_name?: string;
+  is_group?: boolean;
   table_id?: string;
   seat_numbers?: string; // e.g. 'A1-01, A1-02'
   max_guests?: number;
