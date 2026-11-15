@@ -7,6 +7,7 @@ import {
   decodeGuestQuota,
   base64UrlDecode,
   generateGuestPassId,
+  buildGuestQrPayload,
 } from '../lib/guestCode';
 import {
   type GuestCategory,
@@ -766,6 +767,15 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
   const [quickTableId, setQuickTableId] = useState<string>('');
   const [quickEventFilter, setQuickEventFilter] = useState<'all' | 'akad' | 'reception'>('all');
 
+  // Active QR Check-In Feature Flag
+  const [activeQrCheckin, setActiveQrCheckin] = useState<boolean>(() => {
+    return Boolean(hasQrCheckin || isQrCheckinEnabled(customer));
+  });
+
+  useEffect(() => {
+    setActiveQrCheckin(Boolean(hasQrCheckin || isQrCheckinEnabled(customer)));
+  }, [hasQrCheckin, customer]);
+
   // Active Guest Category (VIP / VVIP / Reguler) Feature Flag
   const [activeGuestCategory, setActiveGuestCategory] = useState<boolean>(() => {
     return Boolean(hasGuestCategory || isGuestCategoryEnabled(customer));
@@ -794,6 +804,8 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
             setActiveEventFilter(Boolean(enabled));
           } else if (feature === 'guestCategory') {
             setActiveGuestCategory(Boolean(enabled));
+          } else if (feature === 'qrCheckin') {
+            setActiveQrCheckin(Boolean(enabled));
           }
         }
       }
@@ -848,6 +860,9 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
     const syncFromCloud = async () => {
       try {
         const sharedConfig = await loadSharedConfigFromCloud(customer);
+        if (!isCancelled && typeof sharedConfig.qrCheckinEnabled === 'boolean') {
+          setActiveQrCheckin(sharedConfig.qrCheckinEnabled);
+        }
         if (!isCancelled && typeof sharedConfig.eventFilterEnabled === 'boolean') {
           setActiveEventFilter(sharedConfig.eventFilterEnabled);
         }
@@ -1265,14 +1280,46 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
   const handleCopyAllLinks = () => {
     if (enrichedGuests.length === 0) return;
+    const rawHost = baseUrl.trim().replace(/^https?:\/\//i, '').split(/[/?#]/)[0].trim();
+    const validCustomHost =
+      rawHost && rawHost.includes('.') && rawHost !== 'joyever.id' && rawHost !== 'www.joyever.id'
+        ? rawHost
+        : '';
+    const invitationHost =
+      customer.domain ||
+      validCustomHost ||
+      (customer.slug ? `${customer.slug}.joyever.id` : 'demo-joyfulday.joyever.id');
+
     const formatted = enrichedGuests
       .map((g) => {
+        if (activeQrCheckin) {
+          if (g.is_group) {
+            return `${g.name}: ${g.link}`;
+          }
+          const qrBarcodeUrl = buildGuestQrPayload({
+            coupleNames: customer.couple_names,
+            slug: customer.slug,
+            guestName: g.name,
+            code: g.code,
+            passId: g.passId,
+            maxGuests: g.max_guests,
+            category: g.category,
+            tableName: g.assignedTable?.name,
+            invitationLink: invitationHost,
+          });
+          return `${g.name}: ${g.link}\nQR CODE: ${qrBarcodeUrl}`;
+        }
         const phoneStr = g.phone ? ` (${formatPhoneNumber(g.phone)})` : '';
         return `${g.name}${phoneStr}: ${g.link}`;
       })
       .join('\n\n');
     navigator.clipboard.writeText(formatted);
-    showToast(`Berhasil menyalin ${enrichedGuests.length} tautan tamu ke clipboard!`, 'success');
+    showToast(
+      activeQrCheckin
+        ? `Berhasil menyalin ${enrichedGuests.length} tautan undangan & QR Code ke clipboard!`
+        : `Berhasil menyalin ${enrichedGuests.length} tautan tamu ke clipboard!`,
+      'success'
+    );
   };
 
   // WhatsApp Direct Link Generator
@@ -1892,7 +1939,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
-                hasQrCheckin
+                activeQrCheckin
                   ? 'Cari nama, nomor WA, grup, atau kode pass...'
                   : 'Cari nama, nomor WA, atau grup...'
               }
@@ -2120,7 +2167,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                         {isCopied ? <Check className="w-3.5 h-3.5 text-teal-700" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
 
-                      {hasQrCheckin && !guest.is_group && (
+                      {activeQrCheckin && !guest.is_group && (
                         <button
                           type="button"
                           onClick={() => setQrPreviewGuest(guest)}
@@ -2152,7 +2199,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                               <span className="text-[10px] text-[#52717b]">
                                 ({memberRsvp.attendance === 'tidak_hadir' ? 'Tidak Hadir' : `${memberRsvp.guests} Pax`})
                               </span>
-                              {hasQrCheckin && memberRsvp.attendance !== 'tidak_hadir' && (
+                              {activeQrCheckin && memberRsvp.attendance !== 'tidak_hadir' && (
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -2225,7 +2272,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       </div>
 
       {/* Modal Preview QR Pass Tamu (Hanya untuk akun yang mengaktifkan QR Check-In) */}
-      {hasQrCheckin && qrPreviewGuest && (
+      {activeQrCheckin && qrPreviewGuest && (
         <EntrancePassModal
           guest={{
             name: qrPreviewGuest.name,
@@ -2494,7 +2541,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
                 )}
               </div>
 
-              {hasQrCheckin && (
+              {activeQrCheckin && (
                 <div>
                   <label className="block text-xs font-bold text-[#0e2c34] mb-1">
                     Penempatan Meja
