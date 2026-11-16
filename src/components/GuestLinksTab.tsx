@@ -5,7 +5,6 @@ import {
   encodeGuestCode,
   decodeGuestCode,
   decodeGuestQuota,
-  base64UrlDecode,
   generateGuestPassId,
   buildGuestQrPayload,
 } from '../lib/guestCode';
@@ -1089,22 +1088,7 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
 
     const isValidGuestCode = (c: string | undefined, cleanName: string, quota: number): boolean => {
       if (!c) return false;
-      try {
-        const salt = c.slice(0, 4);
-        const b64 = c.slice(4);
-        const saltNum = parseInt(salt, 16);
-        const scrambled = base64UrlDecode(b64);
-        const bytes = new Uint8Array(scrambled.length);
-        for (let i = 0; i < bytes.length; i++) {
-          const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
-          bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
-        }
-        const raw = new TextDecoder().decode(bytes);
-        if (raw.includes(':::') || raw.trim() !== cleanName) return false;
-        return decodeGuestQuota(c) === quota;
-      } catch {
-        return false;
-      }
+      return decodeGuestCode(c) === cleanName && decodeGuestQuota(c) === quota;
     };
 
     guests.forEach((g) => {

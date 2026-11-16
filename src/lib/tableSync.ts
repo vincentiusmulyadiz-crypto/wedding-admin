@@ -391,6 +391,8 @@ export async function setCustomerFeatureToggle(
 
     const payloadStr = JSON.stringify({
       ...rawExisting,
+      slug: cust.slug || rawExisting.slug,
+      coupleNames: cust.couple_names || rawExisting.coupleNames,
       tables: existing.tables || [],
       guestMeta: existing.guestMeta || {},
       qrCheckinEnabled: currentQr,
@@ -596,6 +598,8 @@ export async function saveSharedConfigToCloud(
 
     const payloadStr = JSON.stringify({
       ...rawExisting,
+      slug: cust.slug || rawExisting.slug,
+      coupleNames: cust.couple_names || rawExisting.coupleNames,
       tables,
       guestMeta: mergedGuestMeta,
       qrCheckinEnabled: isQrCheckinEnabled(cust),
