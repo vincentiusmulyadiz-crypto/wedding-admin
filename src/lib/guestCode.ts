@@ -60,9 +60,14 @@ export function decodeGuestCode(code: string | null | undefined): string | null 
   const clean = code.trim();
   if (clean.length < 5) return null;
   const salt = clean.slice(0, 4);
+  if (!/^[0-9a-f]{4}$/i.test(salt)) return null;
   const b64 = clean.slice(4);
   const saltNum = parseInt(salt, 16);
-  if (isNaN(saltNum)) return null;
+
+  const h0 = parseInt(salt[0], 16);
+  const h1 = parseInt(salt[1], 16);
+  const h2 = parseInt(salt[2], 16);
+  if (h2 !== ((h0 ^ h1 ^ 0xa) & 0xf)) return null;
 
   try {
     const scrambled = base64UrlDecode(b64);
@@ -72,7 +77,7 @@ export function decodeGuestCode(code: string | null | undefined): string | null 
       bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
     }
     let decoded = new TextDecoder().decode(bytes).trim();
-    if (!decoded) return null;
+    if (!decoded || /[\x00-\x1f\x7f\ufffd]/.test(decoded)) return null;
     // Bersihkan jika ada format :::pax dari kode sebelumnya agar nama selalu murni tanpa angka
     if (decoded.includes(':::')) {
       decoded = decoded.split(':::')[0].trim();
@@ -89,9 +94,15 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
   const clean = code.trim();
   if (clean.length < 5) return null;
   const salt = clean.slice(0, 4);
+  if (!/^[0-9a-f]{4}$/i.test(salt)) return null;
   const b64 = clean.slice(4);
   const saltNum = parseInt(salt, 16);
-  if (isNaN(saltNum)) return null;
+
+  const h0 = parseInt(salt[0], 16);
+  const h1 = parseInt(salt[1], 16);
+  const h2 = parseInt(salt[2], 16);
+  const h3 = parseInt(salt[3], 16);
+  if (h2 !== ((h0 ^ h1 ^ 0xa) & 0xf)) return null;
 
   try {
     const scrambled = base64UrlDecode(b64);
@@ -101,21 +112,14 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
       bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
     }
     const raw = new TextDecoder().decode(bytes).trim();
+    if (!raw || /[\x00-\x1f\x7f\ufffd]/.test(raw)) return null;
     if (raw.includes(':::')) {
       const q = parseInt(raw.split(':::')[1], 10);
       if (!isNaN(q) && q >= 1 && q <= 500) return q;
     }
 
-    const h0 = parseInt(salt[0], 16);
-    const h1 = parseInt(salt[1], 16);
-    const h2 = parseInt(salt[2], 16);
-    const h3 = parseInt(salt[3], 16);
-    if (!isNaN(h0) && !isNaN(h1) && !isNaN(h2) && !isNaN(h3)) {
-      if (h2 === ((h0 ^ h1 ^ 0xa) & 0xf)) {
-        const q = (h3 - h0 - h1 + 32) & 0xf;
-        if (q >= 1 && q <= 10) return q;
-      }
-    }
+    const q = (h3 - h0 - h1 + 32) & 0xf;
+    if (q >= 1 && q <= 10) return q;
     return null;
   } catch {
     return null;
