@@ -55,6 +55,14 @@ export function encodeGuestCode(name: string, maxGuests?: number): string {
   return salt + base64UrlEncode(scrambled);
 }
 
+function hasInvalidDecodedChars(str: string): boolean {
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f || c === 0xfffd) return true;
+  }
+  return false;
+}
+
 export function decodeGuestCode(code: string | null | undefined): string | null {
   if (!code || typeof code !== 'string') return null;
   const clean = code.trim();
@@ -67,17 +75,21 @@ export function decodeGuestCode(code: string | null | undefined): string | null 
   const h0 = parseInt(salt[0], 16);
   const h1 = parseInt(salt[1], 16);
   const h2 = parseInt(salt[2], 16);
+  const h3 = parseInt(salt[3], 16);
   if (h2 !== ((h0 ^ h1 ^ 0xa) & 0xf)) return null;
 
   try {
     const scrambled = base64UrlDecode(b64);
+    if (base64UrlEncode(scrambled) !== b64) return null;
     const bytes = new Uint8Array(scrambled.length);
     for (let i = 0; i < scrambled.length; i++) {
       const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
       bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
     }
     let decoded = new TextDecoder().decode(bytes).trim();
-    if (!decoded || /[\x00-\x1f\x7f\ufffd]/.test(decoded)) return null;
+    if (!decoded || hasInvalidDecodedChars(decoded)) return null;
+    const q = (h3 - h0 - h1 + 32) & 0xf;
+    if (!decoded.includes(':::') && (q < 1 || q > 10)) return null;
     // Bersihkan jika ada format :::pax dari kode sebelumnya agar nama selalu murni tanpa angka
     if (decoded.includes(':::')) {
       decoded = decoded.split(':::')[0].trim();
@@ -106,13 +118,14 @@ export function decodeGuestQuota(code: string | null | undefined): number | null
 
   try {
     const scrambled = base64UrlDecode(b64);
+    if (base64UrlEncode(scrambled) !== b64) return null;
     const bytes = new Uint8Array(scrambled.length);
     for (let i = 0; i < scrambled.length; i++) {
       const keyByte = (saltNum >> ((i % 2) * 8)) & 0xff;
       bytes[i] = scrambled[i] ^ (keyByte || 0x5a);
     }
     const raw = new TextDecoder().decode(bytes).trim();
-    if (!raw || /[\x00-\x1f\x7f\ufffd]/.test(raw)) return null;
+    if (!raw || hasInvalidDecodedChars(raw)) return null;
     if (raw.includes(':::')) {
       const q = parseInt(raw.split(':::')[1], 10);
       if (!isNaN(q) && q >= 1 && q <= 500) return q;
