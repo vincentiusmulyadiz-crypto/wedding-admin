@@ -1109,10 +1109,35 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
       localStorage.setItem(codesStorageKey, JSON.stringify(currentCodes));
     }
 
-    const rsvpMap = new Map<string, Rsvp>();
+    const invitedCodes = new Set<string>();
+    const invitedNames = new Set<string>();
+    guests.forEach((g) => {
+      const cleanName = g.name.trim();
+      const lowerN = cleanName.toLowerCase();
+      if (lowerN) invitedNames.add(lowerN);
+      const resolvedCode = currentCodes[cleanName] || g.code;
+      if (resolvedCode) invitedCodes.add(resolvedCode.trim().toLowerCase());
+    });
+
+    const rsvpByParam = new Map<string, Rsvp>();
+    const rsvpBySafeExactName = new Map<string, Rsvp>();
     existingRsvps.forEach((r) => {
-      if (r.name) rsvpMap.set(r.name.trim().toLowerCase(), r);
-      if (r.guest_param) rsvpMap.set(r.guest_param.trim().toLowerCase(), r);
+      const gp = (r.guest_param || '').trim().toLowerCase();
+      if (gp.startsWith('group:')) return;
+      if (gp && !rsvpByParam.has(gp)) {
+        rsvpByParam.set(gp, r);
+      }
+      if (r.name) {
+        const rName = r.name.trim().toLowerCase();
+        const decodedGp = gp ? (decodeGuestCode((r.guest_param || '').trim()) || '').trim().toLowerCase() : '';
+        const boundToOtherGuest =
+          Boolean(gp) &&
+          gp !== rName &&
+          (invitedCodes.has(gp) || invitedNames.has(gp) || (Boolean(decodedGp) && decodedGp !== rName));
+        if (!boundToOtherGuest && !rsvpBySafeExactName.has(rName)) {
+          rsvpBySafeExactName.set(rName, r);
+        }
+      }
     });
 
     let cleanBase = baseUrl.trim().replace(/\/+$/, '');
@@ -1167,24 +1192,11 @@ export const GuestLinksTab: React.FC<GuestLinksTabProps> = ({
           })
         : [];
 
-      let rsvpRow = guest.is_group
+      const rsvpRow = guest.is_group
         ? groupRsvps[0]
-        : rsvpMap.get(lowerName) || rsvpMap.get(lowerCode);
-
-      // Fallback matching: jika tamu individu mengubah nama (misal "Budi Santoso & Istri" vs "Budi Santoso")
-      if (!guest.is_group && !rsvpRow && existingRsvps.length > 0) {
-        rsvpRow = existingRsvps.find((r) => {
-          if (!r.name) return false;
-          const rName = r.name.trim().toLowerCase();
-          if (r.guest_param && (r.guest_param.trim().toLowerCase() === lowerName || r.guest_param.toLowerCase() === lowerCode)) {
-            return true;
-          }
-          if (rName.startsWith(lowerName) || lowerName.startsWith(rName)) {
-            return true;
-          }
-          return false;
-        });
-      }
+        : rsvpByParam.get(lowerCode) ||
+          rsvpByParam.get(lowerName) ||
+          rsvpBySafeExactName.get(lowerName);
 
       const isRsvped = guest.is_group ? groupRsvps.length > 0 : Boolean(rsvpRow);
       const totalGroupPax = guest.is_group
