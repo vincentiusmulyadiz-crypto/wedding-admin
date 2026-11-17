@@ -132,11 +132,6 @@ export const GuestsTab: React.FC<GuestsTabProps> = ({ customer }) => {
         if (groupLookupMap[lowerDecoded]) {
           return groupLookupMap[lowerDecoded];
         }
-        if (lowerDecoded !== (item.name || '').trim().toLowerCase()) {
-          return decoded.trim();
-        }
-      } else if (lowerParam !== (item.name || '').trim().toLowerCase() && rawParam.length <= 60) {
-        return rawParam;
       }
       return null;
     },
