@@ -588,7 +588,9 @@ export const saveGuestsToCloud = async (
         });
         const { error: insErr } = await supabase.from('guests').insert(rows);
         if (insErr) {
-          console.warn('[saveGuestsToCloud] Supabase insert warning:', insErr.message);
+          // Delete di atas sudah jalan: jangan laporkan "tersimpan" jika insert gagal
+          console.error('[saveGuestsToCloud] Supabase insert failed:', insErr.message);
+          return false;
         }
       }
 
