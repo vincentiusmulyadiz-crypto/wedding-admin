@@ -586,7 +586,14 @@ export const saveGuestsToCloud = async (
             opened_at: preservedOpenedAt,
           };
         });
-        const { error: insErr } = await supabase.from('guests').insert(rows);
+        // UNIQUE(customer_id, code): satu kode kembar (nama + jatah sama) menggagalkan seluruh insert
+        const seenCodes = new Set<string>();
+        const uniqueRows = rows.filter((row) => {
+          if (seenCodes.has(row.code)) return false;
+          seenCodes.add(row.code);
+          return true;
+        });
+        const { error: insErr } = await supabase.from('guests').insert(uniqueRows);
         if (insErr) {
           // Delete di atas sudah jalan: jangan laporkan "tersimpan" jika insert gagal
           console.error('[saveGuestsToCloud] Supabase insert failed:', insErr.message);
