@@ -604,8 +604,9 @@ export const saveGuestsToCloud = async (
       // Sinkronkan juga metadata kategori & meja ke baris konfigurasi bersama agar Usher di QR Check-in bisa langsung membacanya
       const currentTables = loadStoredTables(cust);
       await saveSharedConfigToCloud(cust, currentTables, guestMetaMap);
-    } catch {
-      // Abaikan jika tabel public.guests belum dibuat
+    } catch (cloudErr) {
+      console.warn('[saveGuestsToCloud] Unexpected cloud sync error:', cloudErr);
+      return false;
     }
 
     return true;
